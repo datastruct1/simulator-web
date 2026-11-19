@@ -5,7 +5,7 @@ import { clone, deviceView, numberValue, checkSensorAlarms } from './toolHelpers
 
 export type FaultType = typeof faultKinds[number]['id']
 export function injectConfiguredFault(id: string, type: FaultType, value = 0, message = '') {
-  const { state, ensureDevice, setDevice, injectFault, record } = useSimulator()
+  const { state, ensureDevice, setDevice, injectFault, record, isFreeManual } = useSimulator()
   const view = deviceView(id)
   const device = ensureDevice(view.id, view.kind, view.name)
   const old = device.faultBackup && typeof device.faultBackup === 'object' ? device.faultBackup : {
@@ -25,7 +25,7 @@ export function injectConfiguredFault(id: string, type: FaultType, value = 0, me
     const setting = fanRoom.sensorId === 'Pit7A' ? 'autoNitrogenFan' : fanRoom.sensorId === 'Pit1A' ? 'autoCofferdamFan' : 'autoPreparationFan'
     const backupId = fanRoom.masterId.toLowerCase() === device.id.toLowerCase() ? fanRoom.backupId : fanRoom.masterId
     const backup = ensureDevice(backupId,'fan',`${fanRoom.name}备用风机`)
-    if (state.settings[setting] !== false && !backup.error && backup.enabled) {
+    if (!isFreeManual() && state.settings[setting] !== false && !backup.error && backup.enabled) {
       setDevice(backup.id,{working:true,value:100,startRequested:true},false)
       record(`风机异常自动切换：${device.id} → ${backup.id}`,backup.id)
       const pressure = ensureDevice(fanRoom.sensorId,'sensor')

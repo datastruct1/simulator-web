@@ -8,6 +8,7 @@ import FlowProgress from './components/layout/FlowProgress.vue'
 import SimulationRuntime from './components/layout/SimulationRuntime.vue'
 import BaseModal from './components/common/BaseModal.vue'
 import UiIcon from './components/common/UiIcon.vue'
+import ManualSafetyPanel from './components/safety/ManualSafetyPanel.vue'
 import { pageAliases, pages, workflows } from './data/catalog'
 import { useSimulator } from './state/simulator'
 import type { SceneNode } from './types/scene'
@@ -21,7 +22,8 @@ const ExamWorkspace = defineAsyncComponent(() => import('./components/workspace/
 const SceneEditor = defineAsyncComponent(() => import('./components/workspace/SceneEditor.vue'))
 const ToolDialogs = defineAsyncComponent(() => import('./components/dialogs/ToolDialogs.vue'))
 const DeviceDialog = defineAsyncComponent(() => import('./components/dialogs/DeviceDialog.vue'))
-const { state, navigate, openModal, closeModal, ensureDevice, setDevice, record, notify, startFlow, stopFlow, startClock, login, clearFault } = useSimulator()
+const { state, navigate, openModal, closeModal, ensureDevice, setDevice, record, notify, startFlow, stopFlow, startClock, login, clearFault, isFreeManual, manualActivity } = useSimulator()
+const manualActive = computed(isFreeManual)
 const isScene = computed(() => pages.some(page => page.id === state.page))
 const workspace = computed(() => ({ teacher: TeacherWorkspace, student: StudentWorkspace, exam: ExamWorkspace, editor: SceneEditor } as Record<string, Component>)[state.page])
 const modalWidth = computed(() => state.modal?.type === 'device' ? 740 : state.modal?.type === 'confirm' ? 460 : state.modal?.type === 'speed' ? 420 : state.modal?.type === 'inventory' ? 1300 : 1150)
@@ -56,7 +58,7 @@ function action(raw: string, node?: SceneNode) {
   }
   const pumpBank = state.page === 'water' || /PumpStart|PumpStopCommamd|EmerGencyStop/.test(command) ? ['P401', 'P402'] : state.page === 'recovery' ? ['P201', 'P202'] : ['P101', 'P102']
   if (/^(?:StartPump|StopPump|PumpStart|PumpStop)/.test(command)) {
-    if (pumpBank[0] === 'P401' && state.devices.WaterControlPanel?.enabled === false) { notify('冷热水控制面板已急停，请先复位。', 'warning'); return }
+    if (!manualActive.value && pumpBank[0] === 'P401' && state.devices.WaterControlPanel?.enabled === false) { notify('冷热水控制面板已急停，请先复位。', 'warning'); return }
     const deviceId = item?.deviceId || pumpBank[Number(parameter) - 1]
     if (deviceId) setDevice(deviceId, { working: !command.includes('Stop'), value: command.includes('Stop') ? 0 : 100 })
     return
@@ -68,7 +70,7 @@ function action(raw: string, node?: SceneNode) {
       ensureDevice('WaterControlPanel', 'panel', '冷热水控制面板')
       setDevice('WaterControlPanel', { enabled: false, emergencyStop: true }, false)
     }
-    stopFlow()
+    if (!manualActive.value) stopFlow()
     record('撬块紧急停止', pumpBank.join('、'), '警告')
     notify('紧急停止已执行，当前撬块泵已停止。', 'warning')
     return
@@ -144,12 +146,13 @@ onBeforeUnmount(() => { stopClock?.(); document.removeEventListener('keydown', k
     <SimulationRuntime />
     <HeaderToolbar /><PageNavigation />
     <main class="main-view" :class="{ 'workspace-view': !isScene }">
-      <WpfScene v-if="isScene" :scene-id="state.page" :devices="state.devices" :flow-id="state.flowRunning && !state.autoDemo && !state.flowId ? '__manual__' : state.flowId" :running="state.flowRunning && !state.paused" :highlight-id="state.autoDemo || state.workspaces.activeAssessment?.mode === 'exam' ? '' : state.highlightId" @navigate="navigate" @operate="operate" @action="action" />
+      <WpfScene v-if="isScene" :scene-id="state.page" :devices="state.devices" :flow-id="manualActive ? '__manual__' : state.flowId" :manual-flow-id="state.manualFlowId" :running="state.flowRunning && !state.paused" :highlight-id="state.autoDemo || state.workspaces.activeAssessment?.mode === 'exam' ? '' : state.highlightId" @navigate="navigate" @operate="operate" @action="action" />
       <SafetyChecklist v-else-if="state.page === 'safety'" />
       <component :is="workspace" v-else-if="workspace" />
       <div v-else class="empty-state">请选择工艺页面或训练模块。</div>
       <FlowProgress v-if="isScene && !state.autoDemo && state.workspaces.activeAssessment?.mode !== 'exam'" />
-      <div v-if="isScene && state.flowRunning && !state.autoDemo && !state.flowId" class="manual-status" role="status"><UiIcon name="Wrench" :size="16" /><strong>手动操作</strong><span>{{ state.paused ? '已暂停' : '运行中' }}</span><button class="btn btn-sm" @click="stopFlow">退出手动操作</button></div>
+      <ManualSafetyPanel v-if="isScene" />
+      <div v-if="isScene && manualActive" class="manual-status" role="status" data-testid="manual-status"><UiIcon name="Wrench" :size="16" /><strong>{{ manualActivity }}</strong><span>{{ state.paused ? '已暂停' : '手动运行中 · 安全只提示' }}</span><button class="btn btn-sm" @click="state.paused = !state.paused">{{ state.paused ? '继续' : '暂停' }}</button><button class="btn btn-sm" @click="stopFlow">退出手动操作</button></div>
     </main>
     <BottomStatusbar />
   </div>

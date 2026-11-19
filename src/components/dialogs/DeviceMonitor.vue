@@ -8,7 +8,7 @@ import { sampleHistory } from './history'
 import ToolTable from './ToolTable.vue'
 import DeviceVisual from './DeviceVisual.vue'
 
-const { state, setDevice, record, notify } = useSimulator()
+const { state, setDevice, record, notify, isFreeManual } = useSimulator()
 const activeTab = ref('设备监测')
 const tabs = ['设备监测','设备列表','图示说明']
 const search = ref('')
@@ -45,7 +45,7 @@ function bulk(working: boolean) {
   let changed = 0
   for (const id of selected.value) {
     const device = deviceView(id)
-    if (!device.enabled || device.error || ['sensor','gauge','digital-gauge','tank','water-tank'].includes(device.kind)) continue
+    if ((!isFreeManual() && (!device.enabled || device.error)) || ['sensor','gauge','digital-gauge','tank','water-tank'].includes(device.kind)) continue
     if (!setDevice(id,{working,value:working ? 100 : 0,startRequested:working})) continue
     record(`设备列表批量${working ? '启动 / 开启' : '停止 / 关闭'}`,id)
     changed++

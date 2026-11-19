@@ -5,7 +5,7 @@ import { normalizedDeviceId } from './scenes'
 import type { PipeDrawing } from './pipingGeometry'
 
 /** Display-only adjustments; this function never adds fluid connections. */
-export function resolvePipeDrawing(drawing: PipeDrawing, states: Readonly<Record<string, PipeVisualState>>, devices: Readonly<Record<string, SceneDevice>>, running: boolean): Record<string, PipeVisualState> {
+export function resolvePipeDrawing(drawing: PipeDrawing, states: Readonly<Record<string, PipeVisualState>>, devices: Readonly<Record<string, SceneDevice>>, running: boolean, freeManual = false): Record<string, PipeVisualState> {
   const result: Record<string, PipeVisualState> = Object.create(null)
   const lookup = new Map(Object.entries(devices).flatMap(([id, device]) => [[normalizedDeviceId(id), device], [normalizedDeviceId(device.id), device]] as [string, SceneDevice][]))
   for (const geometry of drawing.pipes) {
@@ -16,7 +16,7 @@ export function resolvePipeDrawing(drawing: PipeDrawing, states: Readonly<Record
     const controllerId = overviewHose || geometry.node.deviceId
     const controller = controllerId ? lookup.get(normalizedDeviceId(controllerId)) as (SceneDevice & { connected?: boolean }) | undefined : undefined
     if (geometry.node.kind === 'hose' && controller && (geometry.soft || /^rg\d+$/i.test(controller.id))) {
-      if (controller.connected === false || controller.enabled === false || controller.error === true || controller.working !== true || !(controller.value > 0)) {
+      if (controller.connected === false || (!freeManual && (controller.enabled === false || controller.error === true)) || controller.working !== true || !(controller.value > 0)) {
         state.medium = 'empty'; state.filled = false; state.flowing = false; state.blockedBy = controller.id
       }
     }

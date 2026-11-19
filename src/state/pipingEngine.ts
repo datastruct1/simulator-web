@@ -325,6 +325,80 @@ function activeFlowPipes(profile: FlowProfile, devices: Record<string, DeviceSta
 }
 
 // ---------------------------------------------------------------------------
+// Use the SAME authored pipe metadata as the demo. Local traversal determines
+// visibility only; it must never choose a medium or reverse an animation.
+function manualFlowPalette(profile: FlowProfile, devices: Record<string, DeviceState>, topology: PipingTopology): { pipes: Map<string, ActivePipe>; warnings: string[] } {
+  const variants = new Map<string, ActivePipe[]>()
+  for (const pipe of profile.activePipes) {
+    const id = canonicalPipeId(pipe.pipe, topology)
+    const entries = variants.get(id) || []
+    if (!entries.some(entry => entry.medium === pipe.medium && entry.flowForward === pipe.flowForward)) entries.push(pipe)
+    variants.set(id, entries)
+  }
+  const active = activeFlowPipes(profile, devices, topology)
+  const pipes = new Map<string, ActivePipe>()
+  const warnings: string[] = []
+  for (const [id, entries] of variants) {
+    if (entries.length === 1) pipes.set(id, entries[0]!)
+    else {
+      const candidates = active.get(id) || []
+      const first = candidates[0]
+      if (first && candidates.every(pipe => pipe.medium === first.medium && pipe.flowForward === first.flowForward)) pipes.set(id, first)
+      else warnings.push(`${profile.name}：管段 ${id} 的演示方向 / 介质定义存在多种变体，暂不显示，避免猜测。`)
+    }
+  }
+  return { pipes, warnings }
+}
+
+// Free manual mode ignores process/safety gates, but previews only pipes that
+// have an unambiguous definition in the selected demo. Closed connections still
+// determine reachability. Fault flags remain advisory and are never mutated.
+function resolveManualPiping(devices: Record<string, DeviceState>, options: PipingResolveOptions, topology: PipingTopology): PipingResult {
+  const graph = buildGraph(topology)
+  const profileId = options.manualFlowId ?? 'bunkering'
+  const profile = topology.flowProfiles[profileId]
+  const sandbox = Object.fromEntries(Object.entries(devices).map(([id, device]) => [id, { ...device, error: false, enabled: true }]))
+  const index = deviceIndex(sandbox)
+  const palette = profile ? manualFlowPalette(profile, sandbox, topology) : { pipes: new Map<string, ActivePipe>(), warnings: ['请选择一个有效的手动工艺；未选择时不推测介质和方向。'] }
+  const sources = profile?.sources || []
+  const activeSources = sources.filter(source => {
+    const seed = source.kind === 'root' ? source.node : (source.terminal ?? source.node)
+    return (graph.adjacency.get(seed) || []).some(({ other }) => {
+      if (source.kind === 'root' && source.via && other !== source.via) return false
+      const device = findDevice(other, index)
+      return device && (device.kind === 'valve' ? isValveOpen(device) : device.kind === 'hose' ? isHoseConnected(device) : isDeviceRunning(device))
+    })
+  })
+  const resolved = fillFromSources(activeSources, graph, sandbox)
+  const localSources: FlowSource[] = []
+  for (const [node, adjacent] of graph.adjacency) {
+    const device = findDevice(node, index)
+    if (!device || !(device.kind === 'valve' ? isValveOpen(device) : device.kind === 'hose' ? isHoseConnected(device) : ['pump', 'engine'].includes(device.kind || '') && isDeviceRunning(device))) continue
+    for (const { route, other } of adjacent) {
+      if (!canLeaveNode(node, route, index) || route.segments.every(segment => resolved.fills.has(graph.canonical(segment.pipe)))) continue
+      const authored = route.segments.map(segment => palette.pipes.get(graph.canonical(segment.pipe))).find(Boolean)
+      if (authored) localSources.push({ kind: 'root', node, via: other, medium: authored.medium })
+    }
+  }
+  const local = fillFromSources(localSources, graph, sandbox)
+  for (const [id, fill] of local.fills) if (!resolved.fills.has(id)) resolved.fills.set(id, fill)
+  const pipes: Record<string, PipeVisualState> = {}
+  for (const id of graph.allPipes) {
+    const fill = resolved.fills.get(id)
+    const authored = palette.pipes.get(id)
+    pipes[id] = fill && authored
+      ? { pipeId: id, medium: authored.medium, filled: true, flowing: options.running, forward: authored.flowForward, sourceId: fill.sourceId }
+      : { ...emptyPipeVisualState(id), blockedBy: resolved.blockedBy.get(id) || local.blockedBy.get(id) }
+  }
+  const rows = Object.values(pipes)
+  return { pipes, summary: {
+    flowId: options.flowId, running: options.running, medium: profile?.medium || EMPTY, pumpsOk: true,
+    filledCount: rows.filter(pipe => pipe.filled).length, flowingCount: rows.filter(pipe => pipe.flowing).length,
+    blockedCount: rows.filter(pipe => pipe.blockedBy).length, conflicts: [],
+    sources: activeSources.map(source => source.node), warnings: palette.warnings,
+  } }
+}
+
 // public API
 // ---------------------------------------------------------------------------
 export function resolvePiping(
@@ -332,32 +406,7 @@ export function resolvePiping(
   options: PipingResolveOptions,
   topology: PipingTopology = pipingTopology,
 ): PipingResult {
-  if (options.flowId === '__manual__') {
-    const pipes: Record<string, PipeVisualState> = {}
-    const graph = buildGraph(topology)
-    for (const id of graph.allPipes) pipes[id] = emptyPipeVisualState(id)
-    const index = deviceIndex(devices)
-    const sources = [...new Map(Object.values(topology.flowProfiles || {}).flatMap(profile => profile.sources).map(source => [JSON.stringify(source), source])).values()]
-    const activeSources = sources.filter(source => {
-      const seed = source.kind === 'root' ? source.node : (source.terminal ?? source.node)
-      return (graph.adjacency.get(seed) || []).some(({ other }) => {
-        if (source.kind === 'root' && source.via && other !== source.via) return false
-        const device = findDevice(other, index)
-        return device && ((device.kind === 'valve' && isValveOpen(device)) || (device.kind === 'hose' && isHoseConnected(device)) || (['pump', 'engine'].includes(device.kind || '') && isDeviceRunning(device)))
-      })
-    })
-    const resolved = fillFromSources(activeSources, graph, devices)
-    for (const [id, fill] of resolved.fills) if (pipes[id]) Object.assign(pipes[id]!, { medium: fill.medium, filled: true, forward: fill.forward, sourceId: fill.sourceId })
-    if (options.running) for (const group of Object.values(topology.flowGroups || {})) {
-      if (!(group.valves.length || group.runningDevices.length || group.tripleValve) || !flowGroupOpen(group, index)) continue
-      for (const pipe of group.activePipes) {
-        const id = canonicalPipeId(pipe.pipe, topology)
-        if (!pipes[id] || pipes[id]!.flowing) continue
-        Object.assign(pipes[id]!, { medium: pipe.medium, filled: true, flowing: true, forward: pipe.flowForward })
-      }
-    }
-    return { pipes, summary: { flowId: options.flowId, running: options.running, medium: 'empty', pumpsOk: true, filledCount: Object.values(pipes).filter(pipe => pipe.filled).length, flowingCount: Object.values(pipes).filter(pipe => pipe.flowing).length, blockedCount: resolved.blockedBy.size, conflicts: resolved.conflicts, sources: activeSources.map(source => source.node) } }
-  }
+  if (options.flowId === '__manual__') return resolveManualPiping(devices, options, topology)
   const graph = buildGraph(topology)
   const pipes: Record<string, PipeVisualState> = {}
   for (const cp of graph.allPipes) pipes[cp] = emptyPipeVisualState(cp)

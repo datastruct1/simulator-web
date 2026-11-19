@@ -3,6 +3,7 @@ import { initialDevices, pageAliases, pages, presets, workflows } from '../data/
 import { sensorDefinitions } from '../data/tools'
 import type { Alarm, DeviceChanges, DeviceState, ModalState, OperationLog } from '../types/simulator'
 import { createDevice, evaluateRule, inferDeviceKind, isDeviceId, rulePatch, validateSnapshot } from './engine'
+import { evaluateManualSafety, type ManualSafetyWarning } from './manualSafety'
 
 const STORAGE = 'simulator_web.settings.v1'
 const defaultSettings = {
@@ -71,6 +72,10 @@ const state = reactive({
   toasts: [] as { id: string; message: string; tone: string }[],
   snapshots: [] as any[],
   workspaces: {} as Record<string, any>,
+  manualWarnings: [] as ManualSafetyWarning[],
+  manualAutoStart: true,
+  manualFlowId: 'bunkering',
+  manualFlowExplicit: false,
 })
 
 let sequence = 0
@@ -81,6 +86,8 @@ const time = () => new Date().toLocaleString('zh-CN', { hour12: false })
 const currentFlow = computed(() => workflows.find(flow => flow.id === state.flowId))
 const currentStep = computed(() => currentFlow.value?.steps[state.stepIndex])
 const activeAlarms = computed(() => state.alarms.filter(alarm => !alarm.acknowledged))
+const manualFlow = computed(() => workflows.find(flow => flow.id === state.manualFlowId))
+const manualActivity = computed(() => isFreeManual() ? `${manualFlow.value?.name || '自由管路操作'}试验` : '')
 
 function record(action: string, deviceId = '', level = '信息', changes?: DeviceChanges, before?: DeviceChanges) {
   state.logs.unshift({ id: id(), time: time(), at: Date.now(), user: state.userName, action, deviceId, level, ...(changes ? { changes: { ...changes } } : {}), ...(before ? { before: { ...before } } : {}) })
@@ -108,6 +115,39 @@ function openModal(type: string, title: string, payload: any = {}) {
   state.modal = { type, title, payload }
 }
 function closeModal() { state.modal = null }
+function isFreeManual() {
+  return state.loggedIn && state.flowRunning && !state.autoDemo && !state.flowId && !state.workspaces.activeAssessment
+}
+function defaultManualFlow(page: string, deviceId = ''): string {
+  const id = deviceId.toUpperCase()
+  if (['V1004', 'M1005', 'V1603', 'V1604'].includes(id)) return 'shore-inerting'
+  if (['V1608', 'RG003'].includes(id)) return 'shore-discharge'
+  if (id === 'C1201') return 'load-balance'
+  if (/^P20[12]$/.test(id) || page === 'recovery') return 'recovery-waste'
+  if (/^P40[12]$/.test(id) || page === 'water') return 'heating'
+  if (page === 'nitrogen') return 'ship-inerting'
+  if (/^P10[12]$|^ENGINE0[12]$/.test(id) || ['lfss', 'engine'].includes(page)) return 'supply'
+  return 'bunkering'
+}
+function setManualFlow(flowId: string): boolean {
+  if (state.workspaces.activeAssessment) { notify('考核 / 录制期间不能切换自由手动工艺。', 'warning'); return false }
+  const flow = workflows.find(flow => flow.id === flowId)
+  if (!flow) { notify('未找到对应的演示流程定义，没有切换介质或方向。', 'warning'); return false }
+  state.manualFlowId = flow.id
+  state.manualFlowExplicit = true
+  record(`手动工艺切换为 ${flow.name}：沿用演示方向和介质，不载入工况、不自动开阀`)
+  return true
+}
+let previousManualWarnings = new Set<string>()
+function refreshManualWarnings() {
+  if (!isFreeManual()) { state.manualWarnings = []; previousManualWarnings.clear(); return }
+  const warnings = evaluateManualSafety(state.devices, state.safetyComplete)
+  const added = warnings.filter(warning => !previousManualWarnings.has(warning.id))
+  state.manualWarnings = warnings
+  previousManualWarnings = new Set(warnings.map(warning => warning.id))
+  for (const warning of added) record(`自由操作安全提示（不拦截）：${warning.title} · ${warning.message}`, warning.deviceIds[0] || '', '警告')
+  if (added.length) notify(`安全提示：${added[0]!.title}${added.length > 1 ? `，另有 ${added.length - 1} 项，详见安全提示面板` : ''}。仅提醒，可继续操作。`, 'info')
+}
 function hasSceneAssessment() {
   const active = state.workspaces.activeAssessment
   return active?.kind === 'operation' && active.customScene && active.flowId === state.flowId
@@ -134,8 +174,15 @@ function setDevice(deviceId: string, patch: Partial<DeviceState>, log = true): b
   if (patch.id !== undefined && patch.id !== device.id) { notify('不能修改设备编号。', 'error'); return false }
   if (patch.value !== undefined && !Number.isFinite(patch.value)) { notify('设备数值必须是有限数字。', 'error'); return false }
   if (['working', 'enabled', 'error'].some(key => patch[key] !== undefined && typeof patch[key] !== 'boolean')) { notify('设备状态必须为布尔值。', 'error'); return false }
-  if (device.error && patch.working === true && patch.error !== false) { notify(`${device.id} 处于故障状态，请先复位。`, 'warning'); return false }
-  if (!device.enabled && patch.enabled !== true && patch.working !== false && patch.value !== 0) { notify(`${device.id} 已禁用。`, 'warning'); return false }
+  // A real user opening a valve from idle is itself the start command. Internal
+  // initialization/configuration writes and active assessments cannot start it.
+  if (log && state.loggedIn && state.manualAutoStart && !state.flowRunning && !state.flowId && !state.workspaces.activeAssessment &&
+    ['valve', 'hose', 'pump', 'fan', 'engine', 'heater', 'station'].includes(device.kind) && (patch.working === true || (patch.value ?? 0) > 0)) {
+    startManual()
+    if (!state.manualFlowExplicit) state.manualFlowId = defaultManualFlow(state.page, device.id)
+  }
+  if (!isFreeManual() && device.error && patch.working === true && patch.error !== false) { notify(`${device.id} 处于故障状态，请先复位。`, 'warning'); return false }
+  if (!isFreeManual() && !device.enabled && patch.enabled !== true && patch.working !== false && patch.value !== 0) { notify(`${device.id} 已禁用。`, 'warning'); return false }
   const changed = Object.entries(patch).filter(([key, value]) => device[key] !== value)
   const before = Object.fromEntries(changed.filter(([key]) => ['value', 'working', 'error', 'enabled'].includes(key)).map(([key]) => [key, device[key]])) as DeviceChanges
   Object.assign(device, patch)
@@ -176,14 +223,23 @@ function mergeDevices(values: Record<string, Partial<DeviceState>>, preserveMeta
   }
 }
 export const safetyGateEnabled: boolean = false
-function startManual() {
+function startManual(flowId?: string) {
   if (state.workspaces.activeAssessment) { notify('请先结束当前考核或训练。', 'warning'); return false }
+  if (typeof flowId === 'string' && !setManualFlow(flowId)) return false
+  // Switching directly from a demo retains that exact process definition.
+  if (typeof flowId !== 'string' && state.flowId && workflows.some(flow => flow.id === state.flowId)) {
+    state.manualFlowId = state.flowId
+    state.manualFlowExplicit = true
+  } else if (!state.manualFlowExplicit) state.manualFlowId = defaultManualFlow(state.page)
   state.flowId = ''
   state.flowRunning = true
   state.autoDemo = false
   state.paused = false
   state.highlightId = ''
-  notify('手动操作已开启。', 'success')
+  state.manualAutoStart = true
+  if (state.speed <= 0) state.speed = 1
+  record('开启自由手动操作：安全只提示，不拦截；管路流动为局部可视化示意')
+  notify('自由手动操作已开启：可以任意顺序开关阀门；安全提示不会阻止操作。', 'success')
   return true
 }
 function startFlow(flowId: string, auto = true): boolean {
@@ -289,6 +345,8 @@ function nextStep(auto = state.autoDemo): boolean {
   return true
 }
 function stopFlow() {
+  // Explicit exit must stay stopped until the user re-enters or resets.
+  if (isFreeManual()) state.manualAutoStart = false
   if (state.flowId) record(`结束操作：${currentFlow.value?.name || state.flowId}`)
   state.flowRunning = false
   state.highlightId = ''
@@ -301,7 +359,7 @@ function injectFault(deviceId: string, message = '设备故障') {
   state.flashOff = false
   record(`注入异常：${message}`, deviceId, '警告', { error: true, working: false })
   notify(`${deviceId} 故障已注入。`, 'warning')
-  if (state.settings.autoFuelPump && device.kind === 'pump' && /^P10[12]$/.test(deviceId)) {
+  if (!isFreeManual() && state.settings.autoFuelPump && device.kind === 'pump' && /^P10[12]$/.test(deviceId)) {
     const backup = ensureDevice(deviceId === 'P101' ? 'P102' : 'P101')
     if (!backup.error && backup.enabled) { Object.assign(backup, { working: true, value: 100 }); record(`主泵故障，自动切换至 ${backup.id}`, backup.id) }
   }
@@ -366,6 +424,9 @@ function reset() {
   state.safetyComplete = false
   state.checklist = {}
   state.alarms = []
+  state.manualAutoStart = true
+  state.manualFlowId = 'bunkering'
+  state.manualFlowExplicit = false
   record('系统恢复初始工况')
   notify('已恢复初始工况。', 'success')
 }
@@ -373,6 +434,7 @@ function login(role: 'teacher' | 'student' | 'offline', userName = '') {
   state.role = role
   state.userName = userName.trim() || (role === 'teacher' ? '演示教师' : role === 'offline' ? '离线学员' : '演示学员')
   state.loggedIn = true
+  state.manualAutoStart = true
   navigate(role === 'student' ? 'student' : 'overview')
   record(`${role === 'teacher' ? '教师' : role === 'student' ? '学生' : '离线演示'}进入 Web 仿真平台（本地模式）`)
 }
@@ -412,13 +474,14 @@ watch(() => state.settings, value => {
 watch(() => state.checklist, () => {
   if (state.safetyComplete && !state.requiredSafetyKeys.every(key => state.checklist[key])) state.safetyComplete = false
 }, { deep: true })
+watch(() => [isFreeManual(), state.devices, state.safetyComplete], refreshManualWarnings, { deep: true })
 try {
   const saved = JSON.parse(localStorage.getItem('simulator_web.snapshots.v1') || '[]')
   if (Array.isArray(saved)) state.snapshots = saved.slice(0, 20).filter(item => { try { validateSnapshot(item); return true } catch { return false } })
 } catch { /* Ignore damaged or unavailable browser storage. */ }
 
 export function useSimulator() {
-  return { state, currentFlow, currentStep, activeAlarms, ensureDevice, setDevice, toggleDevice, record, notify, navigate,
+  return { state, currentFlow, currentStep, activeAlarms, manualActivity, manualFlow, setManualFlow, ensureDevice, setDevice, toggleDevice, record, notify, navigate,
     openModal, closeModal, startFlow, startManual, nextStep, stopFlow, setSpeed, completeSafety, injectFault, clearFault, acknowledgeAlarm,
-    saveSnapshot, loadSnapshot, downloadJson, reset, login, logout, applyPreset, startClock, tickSimulation }
+    saveSnapshot, loadSnapshot, downloadJson, reset, login, logout, applyPreset, startClock, tickSimulation, isFreeManual }
 }

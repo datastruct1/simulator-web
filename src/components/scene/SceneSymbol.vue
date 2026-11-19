@@ -6,7 +6,7 @@ import { nodeAttribute, nodeNumber, nodeRange, nodeUnit, nodeValue, sceneVectors
 import { gaugeVisualKind } from './gauge'
 import GaugeFace from './GaugeFace.vue'
 
-const props = defineProps<{ node: SceneNode; device?: SceneDevice; running: boolean; uid: string; stationType?: string }>()
+const props = defineProps<{ node: SceneNode; device?: SceneDevice; running: boolean; uid: string; stationType?: string; freeManual?: boolean }>()
 const emit = defineEmits<{ action: [command: string, value?: string | number | boolean] }>()
 const node = computed(() => props.node)
 const legendLabel = computed(() => /^overview-text-(46|47|48|49|50)$/.test(props.node.id))
@@ -18,7 +18,7 @@ const n = (key: string, fallback = 0) => nodeNumber(props.node, key, fallback)
 const paint = (name: string) => `url(#${props.uid}-${name})`
 const value = computed(() => nodeValue(props.node, props.device))
 const unit = computed(() => nodeUnit(props.node, props.device))
-const enabled = computed(() => props.device?.enabled !== false && props.node.attributes?.enabled !== false)
+const enabled = computed(() => props.freeManual || props.device?.enabled !== false && props.node.attributes?.enabled !== false)
 const working = computed(() => props.device?.working ?? Boolean(props.node.attributes?.checked))
 const opened = computed(() => working.value || value.value > 0)
 const stateColor = computed(() => !enabled.value ? '#9e9e9e' : props.device?.error ? '#f44336' : working.value || (props.node.kind === 'valve' && value.value > 0) ? '#4caf50' : props.node.kind === 'valve' ? '#f44336' : '#88949b')

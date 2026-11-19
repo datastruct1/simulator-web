@@ -4,7 +4,7 @@ import { toolItems } from '../../data/catalog'
 import { useSimulator } from '../../state/simulator'
 import UiIcon from '../common/UiIcon.vue'
 
-const { state, activeAlarms, currentFlow, openModal, navigate } = useSimulator()
+const { state, activeAlarms, currentFlow, manualActivity, isFreeManual, openModal, navigate } = useSimulator()
 const more = ref(false), area = ref<HTMLElement>()
 const clock = computed(() => { const total = Math.floor(state.elapsed); return [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60].map(value => String(value).padStart(2, '0')).join(':') })
 function outside(event: PointerEvent) { if (!area.value?.contains(event.target as Node)) more.value = false }
@@ -23,7 +23,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', outside))
     <div class="status-divider" />
     <button class="speed-status" @click="openModal('speed', '速度控制')"><UiIcon :name="state.paused ? 'Pause' : 'Play'" :size="14" /><span>运行倍速</span><strong>{{ state.paused ? '暂停' : `${state.speed.toFixed(1)}x` }}</strong><UiIcon name="ChevronUp" :size="11" /></button>
     <div class="status-divider" />
-    <div class="process-status"><span>当前进程</span><strong>{{ state.flowRunning ? currentFlow?.name : state.flowId ? '流程已完成' : '就绪' }}</strong></div>
+    <div class="process-status" data-testid="current-process"><span>当前进程</span><strong>{{ isFreeManual() ? `${manualActivity} · ${state.paused ? '暂停' : '运行中'}` : state.flowRunning ? currentFlow?.name || '操作运行中' : state.flowId ? '流程已完成' : '就绪 · 开阀自动运行' }}</strong></div>
     <div class="time-status"><span>模拟时间</span><strong class="digital">{{ clock }}</strong></div>
   </footer>
 </template>

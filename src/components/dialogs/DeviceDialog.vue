@@ -11,7 +11,8 @@ import DeviceVisual from './DeviceVisual.vue'
 import TrendChart from '../common/TrendChart.vue'
 
 interface DevicePayload { id?: string; kind?: string; node?: { deviceId?: string; kind?: string; label?: string; width?: number; height?: number; attributes?: Record<string, any> } }
-const { state, ensureDevice, setDevice, record, notify, closeModal, clearFault, openModal } = useSimulator()
+const { state, ensureDevice, setDevice, record, notify, closeModal, clearFault, openModal, isFreeManual } = useSimulator()
+const freeManual = computed(isFreeManual)
 useHistoryRecorder()
 const payload = computed(() => (state.modal?.payload || {}) as DevicePayload)
 const deviceId = computed(() => (payload.value.id || payload.value.node?.deviceId || payload.value.node?.label || '本地设备').trim().split(/\s+/)[0] || '本地设备')
@@ -83,7 +84,7 @@ function pointerAngle(event: PointerEvent): number {
   const bounds = (event.currentTarget as SVGElement).getBoundingClientRect()
   return Math.atan2(event.clientY - bounds.top - bounds.height / 2, event.clientX - bounds.left - bounds.width / 2) * 180 / Math.PI
 }
-function startWheel(event: PointerEvent) { if (!device.value.enabled) return; lastAngle = pointerAngle(event); (event.currentTarget as SVGElement).setPointerCapture(event.pointerId) }
+function startWheel(event: PointerEvent) { if (!freeManual.value && !device.value.enabled) return; lastAngle = pointerAngle(event); (event.currentTarget as SVGElement).setPointerCapture(event.pointerId) }
 function moveWheel(event: PointerEvent) {
   if (lastAngle === undefined) return
   const next = pointerAngle(event)
@@ -105,8 +106,8 @@ function resetDeviceFault() {
   loadDraft()
 }
 function validate(): boolean {
-  if (!device.value.enabled) { notify('设备已锁定，请在异常配置中复位后操作。', 'warning'); return false }
-  if (device.value.error && (draft.startRequested || (isValve.value && draft.value > 0))) { notify('设备仍处于异常状态，请先复位。', 'warning'); return false }
+  if (!freeManual.value && !device.value.enabled) { notify('设备已锁定，请在异常配置中复位后操作。', 'warning'); return false }
+  if (!freeManual.value && device.value.error && (draft.startRequested || (isValve.value && draft.value > 0))) { notify('设备仍处于异常状态，请先复位。', 'warning'); return false }
   if (!Number.isFinite(Number(draft.value))) { notify('请输入有效的设备数值。', 'error'); return false }
   if (isSensor.value) {
     if (numberValue(draft.min) >= numberValue(draft.max) || draft.value < draft.min || draft.value > draft.max) { notify(`数值必须位于量程 ${draft.min}～${draft.max} ${draft.unit} 内。`, 'warning'); return false }
@@ -134,18 +135,18 @@ function apply(exit = false) {
       lowLow: nullableNumber(draft.lowLow), low: nullableNumber(draft.low), high: nullableNumber(draft.high), highHigh: nullableNumber(draft.highHigh), sensorType: view.sensorType, room: view.room }
     action = `更新传感器：${draft.value} ${draft.unit}，${draft.frozen ? '关闭自动更新' : '允许自动更新'}，${draft.alarmEnabled ? '启用' : '关闭'}报警`
   } else if (['pump', 'fan'].includes(kind.value)) {
-    const working = Boolean(draft.startRequested && draft.powered && (kind.value !== 'pump' || draft.hasContent))
+    const working = Boolean(draft.startRequested && (freeManual.value || draft.powered && (kind.value !== 'pump' || draft.hasContent)))
     patch = { ...patch, working, value: draft.startRequested ? 100 : 0, powered: Boolean(draft.powered), startRequested: Boolean(draft.startRequested), hasContent: Boolean(draft.hasContent), duty: draft.duty }
     action = `${kind.value === 'pump' ? '泵' : '风机'}${draft.startRequested ? '启动' : '停止'} · ${draft.duty} / ${draft.mode}`
     if (draft.startRequested && !working) notify('启动命令已记录，但设备未通电或入口无介质，不能正常运行。', 'warning')
   } else if (kind.value === 'engine') {
-    const working = Boolean(draft.startRequested && draft.hasFuel && draft.powered)
+    const working = Boolean(draft.startRequested && (freeManual.value || draft.hasFuel && draft.powered))
     patch = { ...patch, working, value: working ? Number(draft.load) : 0, startRequested: Boolean(draft.startRequested), hasFuel: Boolean(draft.hasFuel), powered: Boolean(draft.powered), rpm: working ? Number(draft.rpm) : 0,
       power: Number(draft.power), load: Number(draft.load), fuelMode: draft.fuelMode, engineState: !draft.startRequested ? '未启动' : working ? '正常工作' : '启动但没燃料' }
     action = `发动机${draft.startRequested ? '启动' : '停机'} · ${draft.fuelMode} · 负荷 ${draft.load}%`
     if (draft.startRequested && !working) notify('启动命令已记录，当前无燃料或未通电，发动机不产生输出。', 'warning')
   } else if (kind.value === 'heater') {
-    patch = { ...patch, working: Boolean(draft.startRequested && draft.powered), value: draft.startRequested ? Number(draft.heatingPower) : 0, targetTemperature: Number(draft.targetTemperature), heatingMode: draft.heatingMode, heatingPower: Number(draft.heatingPower), powered: Boolean(draft.powered) }
+    patch = { ...patch, working: Boolean(draft.startRequested && (freeManual.value || draft.powered)), value: draft.startRequested ? Number(draft.heatingPower) : 0, targetTemperature: Number(draft.targetTemperature), heatingMode: draft.heatingMode, heatingPower: Number(draft.heatingPower), powered: Boolean(draft.powered) }
     action = `${draft.heatingMode}${draft.startRequested ? '投入' : '停止'}，目标 ${draft.targetTemperature}℃，功率 ${draft.heatingPower}%`
   } else if (isTank.value) {
     patch = { ...patch, unit: '%', value: volumePercent.value, maxCapacity: Number(draft.maxCapacity), currentCapacity: Number(draft.currentCapacity), area: Number(draft.area),
@@ -158,7 +159,7 @@ function apply(exit = false) {
     patch = { ...patch, activeFilter: draft.activeFilter, differentialPressure: Number(draft.differentialPressure), filterState: draft.filterState, working: draft.filterState === '正常' }
     action = `滤器 ${draft.activeFilter} 投用，压差 ${draft.differentialPressure} bar，状态 ${draft.filterState}`
   } else if (kind.value === 'station') {
-    patch = { ...patch, sourceType: draft.sourceType, flow: Number(draft.flow), grounded: Boolean(draft.grounded), moored: Boolean(draft.moored), emergencyStop: Boolean(draft.emergencyStop), working: Boolean(draft.startRequested && !draft.emergencyStop), value: draft.startRequested && !draft.emergencyStop ? 100 : 0 }
+    patch = { ...patch, sourceType: draft.sourceType, flow: Number(draft.flow), grounded: Boolean(draft.grounded), moored: Boolean(draft.moored), emergencyStop: Boolean(draft.emergencyStop), startRequested: Boolean(draft.startRequested), working: Boolean(draft.startRequested && (freeManual.value || !draft.emergencyStop)), value: draft.startRequested && (freeManual.value || !draft.emergencyStop) ? 100 : 0 }
     state.settings.bunkerFlow = Number(draft.flow)
     action = `${draft.sourceType}${draft.startRequested ? '开始' : '停止'}供给，输入流量 ${draft.flow} L/min${draft.emergencyStop ? '，紧急切断' : ''}`
   } else {
@@ -176,8 +177,8 @@ function apply(exit = false) {
 function swapToBackup() {
   if (!pairId.value) return
   const backup = deviceView(pairId.value, kind.value)
-  if (backup.error || !backup.enabled) return notify(`备用设备 ${backup.id} 不可用，请先复位。`, 'warning')
-  if (device.value.error || !device.value.enabled) return notify('当前设备不可操作，请使用异常配置进行故障复位。', 'warning')
+  if (!freeManual.value && (backup.error || !backup.enabled)) return notify(`备用设备 ${backup.id} 不可用，请先复位。`, 'warning')
+  if (!freeManual.value && (device.value.error || !device.value.enabled)) return notify('当前设备不可操作，请使用异常配置进行故障复位。', 'warning')
   ensureDevice(backup.id, kind.value, backup.name)
   if (!setDevice(device.value.id, { working: false, value: 0, startRequested: false, duty: '备用' })) return
   if (!setDevice(backup.id, { working: true, value: 100, startRequested: true, duty: '主用', mode: draft.mode })) return
@@ -189,6 +190,7 @@ function swapToBackup() {
 
 <template>
   <div class="device-dialog" :data-device-kind="kind">
+    <p v-if="freeManual" class="validation-note" data-testid="manual-device-note">自由手动操作：允许任意顺序和故障状态下操作；安全只提示，不拦截、不自动复位。流动为可视化示意。</p>
     <div class="device-summary"><div><span class="device-number">{{ device.id }}</span><h3>{{ device.name }}</h3><span class="badge">{{ isTriple ? '三通调节阀' : kindLabel(kind) }}</span></div><span class="status-pill" :class="{ error: device.error || !device.enabled, on: device.working || (isValve && device.value > 0) }"><i/>{{ deviceStatus(device) }}</span></div>
     <nav class="tabs"><button v-for="tab in tabs" :key="tab" class="tab" :class="{ active: activeTab === tab }" type="button" @click="activeTab = tab">{{ tab }}</button><span v-if="dirty" class="draft-badge">编辑未应用</span></nav>
     <div v-if="activeTab === '操作控制'" class="control-layout">
@@ -202,7 +204,7 @@ function swapToBackup() {
       </aside>
       <form class="device-controls card" @submit.prevent="apply(false)">
         <div class="editor-note">下列为编辑草稿，点击“应用”后生效；取消不会改变设备。</div>
-        <fieldset :disabled="!device.enabled">
+        <fieldset :disabled="!freeManual && !device.enabled">
           <template v-if="isValve">
             <div class="form-grid"><label>总角度<input class="field" readonly value="360°"></label><label>旋转角度（°）<input v-model.number="valveAngle" class="field" type="number" min="0" max="360" :step="isTriple ? 90 : 1" :readonly="isTriple"></label></div>
             <template v-if="isTriple"><div class="direction-options"><button v-for="option in tripleOptions" :key="option.value" class="btn" :class="{ 'btn-primary': draft.value === option.value }" type="button" @click="draft.value = option.value">{{ option.name }}<small>{{ option.value * 3.6 }}°</small></button></div><input v-model.number="valveAngle" class="range" type="range" min="0" max="270" step="90" aria-label="三通阀方向"></template>
@@ -227,7 +229,7 @@ function swapToBackup() {
           <template v-else-if="['filter','dual-filter'].includes(kind)"><div class="form-grid"><label>投用滤器<select v-model="draft.activeFilter" class="field"><option>A</option><option v-if="kind === 'dual-filter'">B</option></select></label><label>滤器状态<select v-model="draft.filterState" class="field"><option>正常</option><option>堵塞</option><option>维护</option></select></label><label>压差（bar）<input v-model.number="draft.differentialPressure" class="field" type="number" min="0" step=".01"></label></div><button class="btn btn-success" type="button" @click="draft.differentialPressure = 0; draft.filterState = '正常'">清洗当前滤器</button></template>
           <template v-else><label>设定值<input v-model.number="draft.value" class="field" type="number" step=".01"></label><input v-model.number="draft.value" class="range" type="range" :min="device.min" :max="device.max" aria-label="控制设定值"><label class="check-line"><input v-model="draft.startRequested" type="checkbox">投入 / 开启</label><label>控制方式<select v-model="draft.mode" class="field"><option>手动</option><option>自动</option></select></label></template>
         </fieldset>
-        <div class="dialog-footer"><button class="btn" type="button" @click="loadDraft">撤销编辑</button><button class="btn" type="button" @click="closeModal">取消</button><button class="btn btn-primary" type="submit" :disabled="!device.enabled">应用</button><button class="btn btn-primary" type="button" :disabled="!device.enabled" @click="apply(true)">保存并退出</button></div>
+        <div class="dialog-footer"><button class="btn" type="button" @click="loadDraft">撤销编辑</button><button class="btn" type="button" @click="closeModal">取消</button><button class="btn btn-primary" type="submit" :disabled="!freeManual && !device.enabled">应用</button><button class="btn btn-primary" type="button" :disabled="!freeManual && !device.enabled" @click="apply(true)">保存并退出</button></div>
       </form>
     </div>
     <div v-else-if="activeTab === '历史趋势'" class="card history-panel"><TrendChart :device-id="device.id" :title="`${device.id} · ${device.name}`" :unit="device.unit" :height="260" show-controls/><p>记录中央仿真状态的实际值变化。曲线不代表桌面版本物理解算精度。</p></div>

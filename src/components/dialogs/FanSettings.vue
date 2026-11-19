@@ -8,14 +8,14 @@ import { deviceView, deviceStatus, locateDevice, openDevice } from './toolHelper
 import DeviceVisual from './DeviceVisual.vue'
 import UiIcon from '../common/UiIcon.vue'
 
-const { state, ensureDevice, setDevice, record, notify } = useSimulator()
+const { state, ensureDevice, setDevice, record, notify, isFreeManual } = useSimulator()
 
 function autoKeyFor(sensorId: string): string {
   if (sensorId === 'Pit7A') return 'autoNitrogenFan'
   if (sensorId === 'Pit1A') return 'autoCofferdamFan'
   return 'autoPreparationFan'
 }
-function healthy(device: DeviceState) { return !device.error && device.enabled }
+function healthy(device: DeviceState) { return isFreeManual() || !device.error && device.enabled }
 interface FanRoomView {
   config: (typeof fanRooms)[number]
   autoKey: string
@@ -43,7 +43,7 @@ const counters = computed(() => ({
 }))
 function start(device: DeviceState, name: string) {
   const actual = ensureDevice(device.id, 'fan', name)
-  if (actual.error || !actual.enabled) { notify(`${actual.id} 故障或已锁定，不能启动。`, 'warning'); return }
+  if (!isFreeManual() && (actual.error || !actual.enabled)) { notify(`${actual.id} 故障或已锁定，不能启动。`, 'warning'); return }
   setDevice(actual.id, { working: true, value: 100, startRequested: true })
   notify(`${name}（${actual.id}）已启动。`, 'success')
 }

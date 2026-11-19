@@ -6,7 +6,7 @@ import PipeLayer from './PipeLayer.vue'
 import { buildPipingGeometry } from './pipingGeometry'
 import { resolvePipeDrawing } from './pipeVisual'
 import { resolvePiping } from '../../state/pipingEngine'
-import { MEDIA } from '../../data/piping'
+import { MEDIA, pipingTopology } from '../../data/piping'
 import { getScene, isInteractiveNode, nodeAttribute, nodeUnit, nodeValue, normalizedDeviceId } from './scenes'
 
 const props = defineProps<{
@@ -14,6 +14,7 @@ const props = defineProps<{
   devices: Record<string, SceneDevice>
   running: boolean
   flowId?: string
+  manualFlowId?: string
   highlightId?: string
 }>()
 const emit = defineEmits<{
@@ -23,9 +24,11 @@ const emit = defineEmits<{
 }>()
 const uid = `wpf-${useId().replace(/[^a-z0-9_-]/gi, '')}`
 const scene = computed(() => getScene(props.sceneId))
+const freeManual = computed(() => props.flowId === '__manual__')
 const pipeDrawing = computed(() => buildPipingGeometry(scene.value.nodes))
-const piping = computed(() => resolvePiping(props.devices, { flowId: props.flowId || '', running: props.running }))
-const pipeStates = computed(() => resolvePipeDrawing(pipeDrawing.value, piping.value.pipes, props.devices, props.running))
+const manualDefinition = computed(() => pipingTopology.flowProfiles[props.manualFlowId || 'bunkering'])
+const piping = computed(() => resolvePiping(props.devices, { flowId: props.flowId || '', running: props.running, manualFlowId: props.manualFlowId }))
+const pipeStates = computed(() => resolvePipeDrawing(pipeDrawing.value, piping.value.pipes, props.devices, props.running, freeManual.value))
 const filledPipes = computed(() => Object.values(pipeStates.value).filter(pipe => pipe.filled).length)
 const flowingPipes = computed(() => Object.values(pipeStates.value).filter(pipe => pipe.flowing).length)
 const mediaById = new Map(MEDIA.map(item => [item.id, item]))
@@ -201,7 +204,7 @@ function activate(node: SceneNode) {
   if (didDrag) { didDrag = false; return }
   hover.value = undefined
   menu.value = undefined
-  if (node.kind === 'button' && deviceFor(node)?.enabled === false) return
+  if (!freeManual.value && node.kind === 'button' && deviceFor(node)?.enabled === false) return
   const destination = nodeAttribute(node, 'navigateId')
   if (destination) emit('navigate', destination)
   else if (node.kind === 'hose' && nodeAttribute(node, 'material') === 'Soft' && deviceFor(node)) {
@@ -307,7 +310,7 @@ defineExpose({ fit, zoomIn, zoomOut, focusDevice, zoomToRegion })
 </script>
 
 <template>
-  <section class="wpf-scene" data-testid="wpf-scene" :data-scene-id="scene.id" :aria-label="`${scene.title} 工艺原图`">
+  <section class="wpf-scene" data-testid="wpf-scene" :data-scene-id="scene.id" :data-manual-flow="freeManual ? manualFlowId : undefined" :aria-label="`${scene.title} 工艺原图`">
     <div class="scene-toolbar">
       <div class="scene-caption"><span class="status-led" :class="{ active: running }"></span><strong>{{ scene.title }}</strong><span class="scene-stat">{{ scene.stats.devices }} 台设备 · {{ scene.stats.pipes }} 段管线</span></div>
       <div class="scene-tools" aria-label="工艺图视图控制">
@@ -323,7 +326,8 @@ defineExpose({ fit, zoomIn, zoomOut, focusDevice, zoomToRegion })
     <div class="pipe-legend" aria-label="管道介质图例" data-testid="pipe-legend">
       <span v-for="medium in MEDIA.filter(item => item.id !== 'empty')" :key="medium.id" class="medium-key" :data-medium="medium.id"><i :style="{ backgroundColor: medium.color }" />{{ medium.label }}</span>
       <span class="pipe-fill-summary" data-testid="pipe-fill-summary">已填充 {{ filledPipes }} 段 · 流动 {{ flowingPipes }} 段</span>
-      <span class="pipe-context" data-testid="pipe-context">{{ !flowId ? '未启动流程 · 空管' : running ? '按当前流程与阀门连通状态显示' : '流动已停止 · 静态填充保留' }}</span>
+      <span class="pipe-context" data-testid="pipe-context">{{ freeManual ? `${manualDefinition?.name || '未选择工艺'} · 沿用演示方向 / 介质 · ${running ? '局部流动示意' : '暂停，保留介质'}` : !flowId ? '未启动流程 · 空管' : running ? '按当前流程与阀门连通状态显示' : '流动已停止 · 静态填充保留' }}</span>
+      <span v-for="warning in piping.summary.warnings || []" :key="warning" class="pipe-context" role="status">{{ warning }}</span>
     </div>
     <div ref="viewport" class="scene-viewport" :class="{ dragging, 'select-region': regionSelect }" tabindex="0" aria-label="工艺图画布，滚轮缩放，拖动平移，按0全图适配" @keydown="keydown" @mouseleave="hover = undefined">
       <svg ref="svg" class="process-svg" :viewBox="`0 0 ${size.width} ${size.height}`" preserveAspectRatio="none" :data-running="running" @wheel.prevent="wheel" @pointerdown="beginPointer" @dblclick.self.prevent="doubleClick" @click.self="menu = undefined" @contextmenu.self.prevent="menu = undefined">
@@ -341,9 +345,9 @@ defineExpose({ fit, zoomIn, zoomOut, focusDevice, zoomToRegion })
           <rect :width="scene.width" :height="scene.height" :fill="scene.background" @dblclick.prevent="doubleClick" @click="menu = undefined" @contextmenu.prevent="menu = undefined" />
           <template v-for="layer in sceneLayers" :key="layer.id">
             <PipeLayer v-if="layer.id === 'equipment'" :drawing="pipeDrawing" :states="pipeStates" />
-          <g v-for="node in layer.nodes" :key="node.id" :transform="nodeTransform(node)" :class="['scene-node', { interactive: isInteractiveNode(node), highlighted: isHighlighted(node), faulted: deviceFor(node)?.error }]" :data-node-id="node.id" :data-device-id="node.deviceId" :data-runtime-device-id="deviceFor(node)?.id" :data-node-kind="node.kind" :data-pipe-id="pipeStates[node.id]?.pipeId" :data-blocked-by="pipeStates[node.id]?.blockedBy" :data-medium="pipeStates[node.id]?.medium" :data-filled="pipeStates[node.id]?.filled" :data-flowing="pipeStates[node.id]?.flowing" :role="isInteractiveNode(node) ? 'button' : undefined" :tabindex="isInteractiveNode(node) ? 0 : undefined" :aria-label="isInteractiveNode(node) ? ariaLabel(node) : undefined" :aria-disabled="deviceFor(node)?.enabled === false ? 'true' : undefined" @click.stop="activate(node)" @keydown.enter.stop.prevent="activate(node)" @keydown.space.stop.prevent="activate(node)" @mouseenter="enterNode($event, node)" @mousemove="enterNode($event, node)" @mouseleave="hover = undefined" @focus="focusNode(node)" @blur="hover = undefined" @contextmenu.stop.prevent="rightClick($event, node)">
+          <g v-for="node in layer.nodes" :key="node.id" :transform="nodeTransform(node)" :class="['scene-node', { interactive: isInteractiveNode(node), highlighted: isHighlighted(node), faulted: deviceFor(node)?.error }]" :data-node-id="node.id" :data-device-id="node.deviceId" :data-runtime-device-id="deviceFor(node)?.id" :data-node-kind="node.kind" :data-pipe-id="pipeStates[node.id]?.pipeId" :data-blocked-by="pipeStates[node.id]?.blockedBy" :data-medium="pipeStates[node.id]?.medium" :data-filled="pipeStates[node.id]?.filled" :data-flowing="pipeStates[node.id]?.flowing" :role="isInteractiveNode(node) ? 'button' : undefined" :tabindex="isInteractiveNode(node) ? 0 : undefined" :aria-label="isInteractiveNode(node) ? ariaLabel(node) : undefined" :aria-disabled="!freeManual && deviceFor(node)?.enabled === false ? 'true' : undefined" @click.stop="activate(node)" @keydown.enter.stop.prevent="activate(node)" @keydown.space.stop.prevent="activate(node)" @mouseenter="enterNode($event, node)" @mousemove="enterNode($event, node)" @mouseleave="hover = undefined" @focus="focusNode(node)" @blur="hover = undefined" @contextmenu.stop.prevent="rightClick($event, node)">
             <rect v-if="isInteractiveNode(node)" class="node-hit-area" :x="node.width < 12 ? (node.width - 12) / 2 : 0" :y="node.height < 12 ? (node.height - 12) / 2 : 0" :width="Math.max(12, node.width)" :height="Math.max(12, node.height)" fill="transparent" />
-            <SceneSymbol v-if="!['pipe', 'hose'].includes(node.kind)" :node="node" :device="deviceFor(node)" :running="running" :uid="uid" :station-type="stationType" @action="(command, value) => symbolAction(command, node, value)" />
+            <SceneSymbol v-if="!['pipe', 'hose'].includes(node.kind)" :node="node" :device="deviceFor(node)" :running="running" :uid="uid" :station-type="stationType" :free-manual="freeManual" @action="(command, value) => symbolAction(command, node, value)" />
             <rect v-if="isHighlighted(node)" class="node-highlight" x="-4" y="-4" :width="Math.max(12, node.width) + 8" :height="Math.max(12, node.height) + 8" rx="5" fill="none" stroke="#004ea0" stroke-width="2.5" vector-effect="non-scaling-stroke" />
           </g>
           </template>

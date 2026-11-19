@@ -96,6 +96,8 @@ export interface DeviceState {
 export interface PipingResolveOptions {
   flowId: string
   running: boolean
+  /** Free manual preview uses this demo's authored media and flow directions. */
+  manualFlowId?: string
 }
 
 export interface PipeVisualState {
@@ -125,6 +127,7 @@ export interface PipingSummary {
   blockedCount: number
   conflicts: PipingConflict[]
   sources: string[]
+  warnings?: string[]
 }
 
 export interface PipingResult {
