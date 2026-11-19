@@ -319,6 +319,124 @@ function isDeviceRunning(device: DeviceState | undefined): boolean {
   return !!device && device.working === true && device.error !== true && device.enabled !== false
 }
 
+// The WPF route lists group pipes around a pump without making it a graph
+// vertex. Keep each physical bank independent; an unrelated running pump is
+// not permission for another branch to animate.
+function routePump(route: PipeRoute): string | undefined {
+  const from = route.from.toUpperCase(), to = route.to.toUpperCase()
+  if (from === 'V1201' && to === 'D1201') return 'P101'
+  if (from === 'V1202' && to === 'D1202') return 'P102'
+  if (from === 'D1501' && ['H1503', 'V1608'].includes(to)) return 'P201'
+  if (from === 'D1502' && ['H1503', 'V1608'].includes(to)) return 'P202'
+  if (from === 'C1401' && to === 'V1403') return 'P401'
+  if (['H1401', 'H1403', 'H1404'].includes(from) && ['H1402', 'H1405', 'H1406'].includes(to)) return 'P402'
+  return undefined
+}
+
+interface TransportResult {
+  pipes: Map<string, Set<MediumId>>
+  reachedTanks: Set<string>
+  warnings: string[]
+}
+
+/** Only proven source-to-outlet paths or powered circulation loops may move. */
+function transportFromSources(sources: FlowSource[], graph: Graph, devices: Record<string, DeviceState>, profile: FlowProfile): TransportResult {
+  const index = deviceIndex(devices)
+  const authored = new Set(profile.activePipes.map(pipe => graph.canonical(pipe.pipe)))
+  const result: TransportResult = { pipes: new Map(), reachedTanks: new Set(), warnings: [] }
+  const openNode = (node: string) => {
+    if (graph.innerJunctions.has(node) || graph.virtualSources.has(node) || graph.sinkTanks.has(node.toUpperCase()) || node.startsWith(OUTDOOR_PREFIX)) return true
+    const device = findDevice(node, index)
+    if (!device) return false
+    if (device.kind === 'valve') return isValveOpen(device)
+    if (device.kind === 'hose') return isHoseConnected(device)
+    if (['pump', 'engine'].includes(device.kind || '')) return isDeviceRunning(device)
+    return device.enabled !== false
+  }
+  // Explicit pump nodes in custom topologies follow upstream -> pump -> downstream.
+  // Keep WPF banks whose pumps are implicit on a route independently gated too.
+  const driveForRoute = (route: PipeRoute) => routePump(route) ||
+    [route.from, route.to].find(node => findDevice(node, index)?.kind === 'pump')
+  const traverse = (node: string, route: PipeRoute, other: string) => {
+    if (!openNode(node) || !openNode(other) || !canLeaveNode(node, route, index)) return false
+    if (CHECK_VALVE.test(other) && route.from === other) return false
+    if (!tripleValveRouteOpen(other, route, index)) return false
+    const pump = driveForRoute(route)
+    return !pump || node === route.from && isDeviceRunning(findDevice(pump, index))
+  }
+  const mark = (routes: PipeRoute[], medium: MediumId) => {
+    for (const route of routes) for (const segment of route.segments) {
+      const id = graph.canonical(segment.pipe)
+      const media = result.pipes.get(id) || new Set<MediumId>()
+      media.add(medium); result.pipes.set(id, media)
+    }
+  }
+  for (const source of sources) {
+    const seed = source.kind === 'root' ? source.node : source.terminal || source.node
+    if (!openNode(seed)) continue
+    const nodes = [seed], routes: PipeRoute[] = [], used = new Set<number>()
+    let visits = 0
+    const walk = (node: string) => {
+      if (++visits > 50000) return
+      for (const edge of graph.adjacency.get(node) || []) {
+        if (used.has(edge.routeIndex) || !traverse(node, edge.route, edge.other)) continue
+        if (!routes.length && source.kind === 'root' && source.via && edge.other !== source.via) continue
+        const nextRoutes = [...routes, edge.route]
+        const endAuthored = !profile.animationGroups.length || edge.route.segments.some(segment => authored.has(graph.canonical(segment.pipe)))
+        const pumpOnPath = nextRoutes.some(route => !!driveForRoute(route))
+        const hasDrive = !profile.pumps.length || pumpOnPath
+        const cycleAt = nodes.indexOf(edge.other)
+        if (cycleAt >= 0) {
+          const cycle = nextRoutes.slice(cycleAt)
+          // The same edge backwards isn't circulation. A real loop needs a
+          // running, correctly oriented pump and an authored final connection.
+          if (cycle.length >= 2 && cycle.some(route => !!driveForRoute(route)) && endAuthored) mark(cycle, source.medium)
+          continue
+        }
+        const device = findDevice(edge.other, index)
+        const tank = graph.sinkTanks.has(edge.other.toUpperCase())
+        const outlet = edge.other.startsWith(OUTDOOR_PREFIX) || tank || device?.kind === 'engine'
+        if (outlet) {
+          if (hasDrive && endAuthored && (device?.kind !== 'engine' || source.medium === 'methanol')) {
+            mark(nextRoutes, source.medium)
+            if (tank) result.reachedTanks.add(edge.other.toUpperCase())
+          }
+          continue
+        }
+        if (graph.virtualSources.has(edge.other)) continue
+        used.add(edge.routeIndex); nodes.push(edge.other); routes.push(edge.route)
+        walk(edge.other)
+        routes.pop(); nodes.pop(); used.delete(edge.routeIndex)
+      }
+    }
+    walk(seed)
+    if (visits > 50000) result.warnings.push(`${profile.name}：复杂回路只显示已验证的连通流动，不推测其他支路。`)
+  }
+  return result
+}
+
+function processSources(profile: FlowProfile): { fill: FlowSource[]; vent: FlowSource[] } {
+  // Tank headspace is the real source of displaced vent gas. It can fill the
+  // vent line, but moves only while a liquid inlet actually reaches the tank.
+  const vent: FlowSource[] = profile.id === 'bunkering' ? [{ kind: 'root', node: 'T101', via: 'M1101', medium: 'nitrogen' }] : []
+  return { fill: [...profile.sources, ...vent], vent }
+}
+
+function processTransport(profile: FlowProfile, graph: Graph, devices: Record<string, DeviceState>): TransportResult {
+  const result = transportFromSources(profile.sources, graph, devices, profile)
+  const vent = processSources(profile).vent
+  if (vent.length && result.reachedTanks.has('T101')) {
+    const displaced = transportFromSources(vent, graph, devices, profile)
+    for (const [id, media] of displaced.pipes) {
+      const existing = result.pipes.get(id) || new Set<MediumId>()
+      for (const medium of media) existing.add(medium)
+      result.pipes.set(id, existing)
+    }
+    result.warnings.push(...displaced.warnings)
+  }
+  return result
+}
+
 function flowGroupOpen(group: FlowAnimationGroup, index: Map<string, DeviceState>): boolean {
   if (!group.valves.every(id => {
     const device = findDevice(id, index)
@@ -383,54 +501,36 @@ function manualFlowPalette(profile: FlowProfile, devices: Record<string, DeviceS
   return { pipes, warnings }
 }
 
-// Free manual mode ignores process/safety gates, but previews only pipes that
-// have an unambiguous definition in the selected demo. Closed connections still
-// determine reachability. Fault flags remain advisory and are never mutated.
+// Freedom applies to user operations, not to inventing fluid sources. Filling
+// starts at configured process sources; movement needs a complete open path.
+// Fault flags remain advisory and are never mutated in free manual mode.
 function resolveManualPiping(devices: Record<string, DeviceState>, options: PipingResolveOptions, topology: PipingTopology): PipingResult {
   const graph = buildGraph(topology)
   const profileId = options.manualFlowId ?? 'bunkering'
   const profile = topology.flowProfiles[profileId]
   const sandbox = Object.fromEntries(Object.entries(devices).map(([id, device]) => [id, { ...device, error: false, enabled: true }]))
-  const index = deviceIndex(sandbox)
   const palette = profile ? manualFlowPalette(profile, sandbox, topology) : { pipes: new Map<string, ActivePipe>(), warnings: ['请选择一个有效的手动工艺；未选择时不推测介质和方向。'] }
-  const sources = profile?.sources || []
-  const activeSources = sources.filter(source => {
-    const seed = source.kind === 'root' ? source.node : (source.terminal ?? source.node)
-    return (graph.adjacency.get(seed) || []).some(({ other }) => {
-      if (source.kind === 'root' && source.via && other !== source.via) return false
-      const device = findDevice(other, index)
-      return device && (device.kind === 'valve' ? isValveOpen(device) : device.kind === 'hose' ? isHoseConnected(device) : isDeviceRunning(device))
-    })
-  })
-  const resolved = fillFromSources(activeSources, graph, sandbox)
-  const localSources: FlowSource[] = []
-  for (const [node, adjacent] of graph.adjacency) {
-    const device = findDevice(node, index)
-    if (!device || !(device.kind === 'valve' ? isValveOpen(device) : device.kind === 'hose' ? isHoseConnected(device) : ['pump', 'engine'].includes(device.kind || '') && isDeviceRunning(device))) continue
-    for (const { route, other } of adjacent) {
-      if (!canLeaveNode(node, route, index) || route.segments.every(segment => resolved.fills.has(graph.canonical(segment.pipe)))) continue
-      const authored = route.segments.map(segment => palette.pipes.get(graph.canonical(segment.pipe))).find(Boolean)
-      if (authored) localSources.push({ kind: 'root', node, via: other, medium: authored.medium })
-    }
-  }
-  const local = fillFromSources(localSources, graph, sandbox)
-  for (const [id, fill] of local.fills) if (!resolved.fills.has(id)) resolved.fills.set(id, fill)
+  // A missing device snapshot is not a plant with every valve closed; leave it blank until initialized.
+  const sources = profile && Object.values(sandbox).some(device => typeof device.id === 'string' && device.id.length > 0) ? processSources(profile).fill : []
+  const resolved = fillFromSources(sources, graph, sandbox)
+  const transport = profile ? processTransport(profile, graph, sandbox) : { pipes: new Map<string, Set<MediumId>>(), warnings: [] }
+  const conflicts = new Set(resolved.conflicts.map(conflict => conflict.pipe))
   const pipes: Record<string, PipeVisualState> = {}
   for (const id of graph.allPipes) {
     const fill = resolved.fills.get(id)
     const authored = palette.pipes.get(id)
     pipes[id] = fill && authored
-      ? { pipeId: id, medium: authored.medium, filled: true, flowing: options.running, forward: authored.flowForward, sourceId: fill.sourceId }
+      ? { pipeId: id, medium: fill.medium, filled: true, flowing: options.running && !conflicts.has(id) && fill.medium === authored.medium && transport.pipes.get(id)?.has(fill.medium) === true, forward: authored.flowForward, sourceId: fill.sourceId }
       : fill?.throughInner && profile && !NITROGEN_JACKETS.has(id)
         ? { pipeId: id, medium: fill.medium, filled: true, flowing: false, forward: fill.forward, sourceId: fill.sourceId, fillOrigin: 'inner-connection' }
-      : { ...emptyPipeVisualState(id), blockedBy: resolved.blockedBy.get(id) || local.blockedBy.get(id) }
+      : { ...emptyPipeVisualState(id), blockedBy: resolved.blockedBy.get(id) }
   }
   const rows = Object.values(pipes)
   return { pipes, summary: {
     flowId: options.flowId, running: options.running, medium: profile?.medium || EMPTY, pumpsOk: true,
     filledCount: rows.filter(pipe => pipe.filled).length, flowingCount: rows.filter(pipe => pipe.flowing).length,
-    blockedCount: rows.filter(pipe => pipe.blockedBy).length, conflicts: [],
-    sources: activeSources.map(source => source.node), warnings: palette.warnings,
+    blockedCount: rows.filter(pipe => pipe.blockedBy).length, conflicts: resolved.conflicts,
+    sources: sources.map(source => source.node), warnings: [...palette.warnings, ...transport.warnings, ...resolved.conflicts.map(conflict => `管段 ${conflict.pipe} 的介质来源存在冲突，未播放流动，请检查对应管路和阀门连接。`)],
   } }
 }
 
@@ -453,11 +553,12 @@ export function resolvePiping(
   let pOk = true
 
   if (profile) {
-    const resolved = fillFromSources(profile.sources, graph, devices)
+    const resolved = fillFromSources(processSources(profile).fill, graph, devices)
     fills = resolved.fills
     blockedBy = resolved.blockedBy
     conflicts.push(...resolved.conflicts)
     pOk = pumpsOk(profile, devices)
+    const transport = processTransport(profile, graph, devices)
     const flowMap = options.running ? activeFlowPipes(profile, devices, topology) : new Map<string, ActivePipe[]>()
 
     for (const cp of graph.allPipes) {
@@ -472,19 +573,9 @@ export function resolvePiping(
         state.blockedBy = blockedBy.get(cp)
       }
       const active = fill && flowMap.get(cp)?.find(pipe => pipe.medium === fill.medium)
-      if (active) {
+      if (active && transport.pipes.get(cp)?.has(state.medium) && !resolved.conflicts.some(conflict => conflict.pipe === cp)) {
         state.flowing = true
         state.forward = active.flowForward
-      }
-      if (options.running && (options.flowId === 'bunkering' || options.flowId === 'bunkering-purge')) {
-        const wpfPipe = flowMap.get(cp)?.[0]
-        if (wpfPipe) {
-          state.medium = wpfPipe.medium
-          state.filled = true
-          state.flowing = true
-          state.forward = wpfPipe.flowForward
-          state.blockedBy = undefined
-        }
       }
     }
   }

@@ -137,9 +137,16 @@ test('隐藏成绩不在全局日志中泄露数值', () => {
   assert.equal(simulator.state.logs.some(log => /实际得分/.test(log.action)), false)
 })
 
-test('安全检查后的待开始任务再次复核原截止时间，不能过期开始', () => {
+test('待开始操作任务恢复时复核原截止时间，不依赖安全门禁开关', () => {
   const task = workspace.data.tasks.find(task => task.kind === 'operation')
-  assert.equal(workspace.startTask(task), false)
+  const started = workspace.startTask(task)
+  if (started) {
+    // Free-operation mode disables the safety gate; construct a pending launch explicitly
+    // to test deadline revalidation without changing the application's safety policy.
+    const pending = domain.clone(workspace.data.activeOperation)
+    workspace.cancelAssessment()
+    workspace.data.pendingLaunch = pending
+  }
   assert.ok(workspace.data.pendingLaunch)
   assert.equal(workspace.data.activeOperation, null)
   simulator.state.safetyComplete = true

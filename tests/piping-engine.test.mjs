@@ -287,3 +287,65 @@ test('bunkering 从 V1002 液相边界注入甲醇，主路径填充而非误灌
   assert.equal(result.pipes['1755764967347'].filled, false, '未接通排气路，不得从 V1001 注入甲醇')
   assert.ok(result.summary.filledCount > 5)
 })
+
+test('未初始化空快照与全关的真实设备不同：真实源侧仍能静态填充', () => {
+  const t = makeTopology({ sources: [{ kind: 'root', node: 'S', medium: 'methanol' }],
+    routes: [{ from: 'S', to: 'A', segments: [seg('in')] }, { from: 'A', to: 'Outdoor@A', segments: [seg('out')] }],
+    activePipes: [{ pipe: 'in', medium: 'methanol', flowForward: true }, { pipe: 'out', medium: 'methanol', flowForward: true }] })
+  const empty = resolvePiping({}, { flowId: '__manual__', manualFlowId: 'test', running: true }, t)
+  assert.equal(empty.summary.filledCount, 0)
+  const closed = resolvePiping({ A: valve('A', 0) }, { flowId: '__manual__', manualFlowId: 'test', running: true }, t)
+  assert.equal(closed.pipes.in.filled, true)
+  assert.equal(closed.pipes.in.flowing, false)
+  assert.equal(closed.pipes.out.filled, false)
+})
+
+test('显式泵节点只驱动当前正向贯通路径：停泵、反向入泵和反向出泵都不流动', () => {
+  const routes = [{ from: 'S', to: 'P', segments: [seg('in')] }, { from: 'P', to: 'A', segments: [seg('after')] }, { from: 'A', to: 'Outdoor@A', segments: [seg('out')] }]
+  const t = makeTopology({ sources: [{ kind: 'root', node: 'S', medium: 'methanol' }], pumps: ['P'], routes,
+    activePipes: ['in', 'after', 'out'].map(pipe => ({ pipe, medium: 'methanol', flowForward: true })) })
+  const devices = { P: pump('P'), A: valve('A') }
+  assert.ok(Object.values(resolvePiping(devices, { flowId: 'test', running: true }, t).pipes).every(pipe => pipe.flowing))
+  for (const stopped of [{ ...devices, P: pump('P', false) }, { ...devices, P: { ...pump('P'), error: true } }]) {
+    const result = resolvePiping(stopped, { flowId: 'test', running: true }, t)
+    assert.equal(result.pipes.in.filled, true)
+    assert.equal(result.summary.flowingCount, 0)
+  }
+  for (const index of [0, 1]) {
+    const reverse = structuredClone(t)
+    const route = reverse.routes[index]; [route.from, route.to] = [route.to, route.from]
+    const result = resolvePiping(devices, { flowId: 'test', running: true }, reverse)
+    assert.equal(result.summary.flowingCount, 0)
+    assert.equal(result.pipes.in.filled, true, '逆向动画禁用不应清空源侧静态填充')
+  }
+})
+
+test('显式泵闭环必须由环内运行泵驱动，入口路径上的另一台泵不能冒充环内驱动', () => {
+  const t = makeTopology({ sources: [{ kind: 'root', node: 'S', medium: 'methanol' }], pumps: ['P'],
+    routes: [{ from: 'S', to: 'A', segments: [seg('entry')] }, { from: 'A', to: 'P', segments: [seg('in')] },
+      { from: 'P', to: 'B', segments: [seg('after')] }, { from: 'B', to: 'A', segments: [seg('return')] }],
+    activePipes: ['entry', 'in', 'after', 'return'].map(pipe => ({ pipe, medium: 'methanol', flowForward: true })) })
+  const devices = { A: valve('A'), B: valve('B'), P: pump('P') }
+  const driven = resolvePiping(devices, { flowId: 'test', running: true }, t)
+  for (const pipe of ['in', 'after', 'return']) assert.equal(driven.pipes[pipe].flowing, true)
+  devices.P.working = false
+  assert.equal(resolvePiping(devices, { flowId: 'test', running: true }, t).summary.flowingCount, 0)
+  const upstreamOnly = makeTopology({ sources: [{ kind: 'root', node: 'S', medium: 'methanol' }], pumps: ['P'],
+    routes: [{ from: 'S', to: 'P', segments: [seg('entry')] }, { from: 'P', to: 'A', segments: [seg('approach')] },
+      { from: 'A', to: 'B', segments: [seg('one')] }, { from: 'B', to: 'C', segments: [seg('two')] }, { from: 'C', to: 'A', segments: [seg('three')] }],
+    activePipes: ['entry', 'approach', 'one', 'two', 'three'].map(pipe => ({ pipe, medium: 'methanol', flowForward: true })) })
+  const result = resolvePiping({ A: valve('A'), B: valve('B'), C: valve('C'), P: pump('P') }, { flowId: 'test', running: true }, upstreamOnly)
+  assert.equal(result.summary.flowingCount, 0)
+})
+
+test('真实介质源冲突保留静态填充与提示，不清空管道，也不播放冲突段动画', () => {
+  const t = makeTopology({ sources: [{ kind: 'root', node: 'S1', medium: 'methanol' }, { kind: 'root', node: 'S2', medium: 'nitrogen' }], virtualSources: ['S1', 'S2'],
+    routes: [{ from: 'S1', to: 'J', segments: [seg('a')] }, { from: 'S2', to: 'J', segments: [seg('b')] }, { from: 'J', to: 'Outdoor@J', segments: [seg('shared')] }],
+    activePipes: [{ pipe: 'a', medium: 'methanol', flowForward: true }, { pipe: 'b', medium: 'nitrogen', flowForward: true }, { pipe: 'shared', medium: 'methanol', flowForward: true }] })
+  const result = resolvePiping({ J: junction('J') }, { flowId: '__manual__', manualFlowId: 'test', running: true }, t)
+  assert.equal(result.pipes.shared.filled, true)
+  assert.equal(result.pipes.shared.medium, 'methanol')
+  assert.equal(result.pipes.shared.flowing, false)
+  assert.ok(result.summary.conflicts.some(conflict => conflict.pipe === 'shared'))
+  assert.ok(result.summary.warnings.some(warning => warning.includes('shared') && warning.includes('冲突')))
+})

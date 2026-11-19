@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import imported from '../src/data/workflows.generated.json'
 import { createFlowAssessment, feedFlowAssessment, flowAssessmentDetails } from '../src/components/workspace/lib/flowAssessment.ts'
 
@@ -39,6 +41,16 @@ function finiteJSON(value) {
   else if (value && typeof value === 'object') Object.values(value).forEach(finiteJSON)
 }
 
+// WPF originals are optional on a standalone clone; committed resources are always tested.
+const originalRoots = [
+  process.env.WPF_SOURCE_ROOT,
+  fileURLToPath(new URL('../../Simulator/src/', import.meta.url)),
+  fileURLToPath(new URL('../../', import.meta.url)),
+  fileURLToPath(new URL('../../../', import.meta.url)),
+].filter(Boolean)
+const assessedFlows = imported.workflows.filter(item => item.assessment)
+const originalRoot = originalRoots.find(root => assessedFlows.every(item => existsSync(join(root, item.source))))
+
 test('仅10个原playbook新增完整assessment；21flows/308演示steps/设备工况保留', () => {
   assert.equal(imported.workflows.length, 21)
   assert.equal(imported.workflows.reduce((sum, item) => sum + item.steps.length, 0), 308)
@@ -46,44 +58,53 @@ test('仅10个原playbook新增完整assessment；21flows/308演示steps/设备�
   assert.equal(Object.keys(imported.presets).length, 20)
   const assessed = imported.workflows.filter(item => item.assessment)
   assert.equal(assessed.length, 10)
-  let count = 0, stages = 0
+  assert.equal(assessed.reduce((sum, item) => sum + item.assessment.stages.length, 0), 20)
+  assert.equal(assessed.reduce((sum, item) => sum + item.assessment.stages.reduce((n, set) => n + set.conditions.length + set.triggers.length, 0), 0), 139)
   for (const item of assessed) {
-    const raw = JSON.parse(readFileSync(new URL('../../../' + item.source, import.meta.url), 'utf8').replace(/^\uFEFF/, ''))
     assert.equal(item.assessment.schemaVersion, 1)
     assert.equal(item.assessment.source, item.source)
+    for (const [index, set] of item.assessment.stages.entries()) {
+      assert.equal(set.source, `${item.source}#/steps/${index}`)
+      assert.ok(Array.isArray(set.watch))
+      for (const rule of [...set.conditions, ...set.triggers]) {
+        assert.ok(rule.source.startsWith(`${item.source}#/steps/${index}/`))
+        assert.ok(Object.hasOwn(rule, 'rawWeight'))
+        if (rule.sourceValue !== undefined) {
+          assert.equal(rule.name, 'C1401')
+          assert.equal(rule.value, rule.sourceValue * 100)
+        }
+      }
+    }
+  }
+  assert.equal(definition('cooling').stages[0].triggers.filter(rule => rule.name === 'H1403').length, 2)
+  assert.equal(definition('supply').stages[2].conditions.length, 3) // Preserve the singular condition field too.
+  for (const item of imported.workflows.filter(item => !item.assessment)) assert.ok(item.source.includes('/Resources/Jsons/'))
+})
+
+test('可用WPF原件与已提交assessment逐字段一致', { skip: originalRoot ? false : '未安装WPF原件；已提交资源结构和所有评分规则仍正常测试' }, () => {
+  for (const item of assessedFlows) {
+    const raw = JSON.parse(readFileSync(join(originalRoot, item.source), 'utf8').replace(/^\uFEFF/, ''))
     assert.equal(item.assessment.score, raw.score)
     assert.equal(item.assessment.name, raw.name)
     assert.equal(item.assessment.stages.length, raw.steps.length)
     for (const [index, set] of item.assessment.stages.entries()) {
-      stages++
       assert.equal(set.name, raw.steps[index].name)
       assert.deepEqual(set.watch, raw.steps[index].watch)
-      assert.equal(set.source, `${item.source}#/steps/${index}`)
       for (const key of ['conditions', 'triggers']) {
         const originalKey = key === 'conditions' && !Object.hasOwn(raw.steps[index], key) ? 'condition' : key
         const originals = raw.steps[index][originalKey] || []
         assert.equal(set[key].length, originals.length)
         for (const [ruleIndex, rule] of set[key].entries()) {
-          count++
           const { rawWeight, source, sourceValue, ...preserved } = rule
           const original = { ...originals[ruleIndex] }
           assert.equal(rawWeight, original.weight ?? null)
           assert.equal(source, `${item.source}#/steps/${index}/${originalKey}/${ruleIndex}`)
-          if (sourceValue !== undefined) {
-            assert.equal(original.name, 'C1401')
-            assert.equal(sourceValue, original.value)
-            original.value *= 100
-          }
+          if (sourceValue !== undefined) { assert.equal(original.name, 'C1401'); assert.equal(sourceValue, original.value); original.value *= 100 }
           assert.deepEqual(preserved, original)
         }
       }
     }
   }
-  assert.equal(count, 139)
-  assert.equal(stages, 20)
-  assert.equal(definition('cooling').stages[0].triggers.filter(rule => rule.name === 'H1403').length, 2)
-  assert.equal(definition('supply').stages[2].conditions.length, 3) // Preserve the singular condition field too.
-  for (const item of imported.workflows.filter(item => !item.assessment)) assert.ok(item.source.includes('/Resources/Jsons/'))
 })
 
 test('原泵失效两阶段各3触发器；全部36种阶段内操作顺序均可结算', () => {

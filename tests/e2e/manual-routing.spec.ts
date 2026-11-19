@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { navigateScene, readyPlant } from './helpers/piping'
+import { navigateScene, readyPlant, patchDevices } from './helpers/piping'
 
 const archive = JSON.parse(readFileSync(new URL('../../src/data/piping.generated.json', import.meta.url), 'utf8'))
 const catalog = JSON.parse(readFileSync(new URL('../../src/data/workflows.generated.json', import.meta.url), 'utf8'))
@@ -65,15 +65,18 @@ for (const [id, profile] of Object.entries<any>(archive.flowProfiles)) {
   })
 }
 
-test('同一真实管段切换加注/惰化：介质正确切换，不重置阀门，不借用上一个模式', async ({ page }) => {
+test('同一真实管段切换工艺不造源：只在对应入口/出口打开后填充，切换不重置设备', async ({ page }) => {
   await readyPlant(page, 'bunkering')
   await navigateScene(page, 'overview')
   await page.getByTestId('start-manual').click()
   const before = await deviceSnapshot(page)
   await expect(page.locator('[data-pipe-flow][data-pipe-id="34"]').first()).toHaveAttribute('data-medium', 'methanol')
   await page.getByTestId('manual-flow-select').selectOption('shore-inerting')
-  await expect(page.locator('[data-pipe-flow][data-pipe-id="34"]').first()).toHaveAttribute('data-medium', 'nitrogen')
   expect((await deviceSnapshot(page)).devices).toBe(before.devices)
+  await expect(page.locator('[data-pipe-fill][data-pipe-id="34"]')).toHaveCount(0)
+  await patchDevices(page, Object.fromEntries(['M1005', 'V1004', 'V1603', 'V1604'].map(id => [id, { value: 100, working: true }])))
+  await expect(page.locator('[data-pipe-flow][data-pipe-id="34"]').first()).toHaveAttribute('data-medium', 'nitrogen')
+  await patchDevices(page, Object.fromEntries(['M1005', 'V1004', 'V1603', 'V1604'].map(id => [id, { value: 0, working: false }])))
   await page.getByTestId('manual-flow-select').selectOption('bunkering')
   await expect(page.locator('[data-pipe-flow][data-pipe-id="34"]').first()).toHaveAttribute('data-medium', 'methanol')
   await expect(page.locator('[data-pipe-flow][data-pipe-id="41"]').first()).toHaveAttribute('data-medium', 'nitrogen')

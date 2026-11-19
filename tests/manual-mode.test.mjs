@@ -20,6 +20,10 @@ function closedPlant() {
   return devices
 }
 const manual = (devices, running = true) => resolvePiping(devices, { flowId: '__manual__', running })
+function openBunkeringPath(devices) {
+  for (const id of ['V1002', 'M1004', 'M1003', 'M1002', 'M1602', 'V1602', 'M1102']) Object.assign(devices[id], { value: 100, working: true })
+  Object.assign(devices.Rg002, { value: 100, working: true, connected: true })
+}
 // Explicit independent process gate; pre-existing real-plant import failures are out of scope.
 const gatedTopology = {
   schemaVersion: 1, media: [], substanceType: {}, aliases: {}, canonicalPipes: {}, virtualSources: ['S'], sinkTanks: [], extraProfiles: {}, sourceNotes: [], audit: {},
@@ -38,40 +42,41 @@ beforeEach(async () => {
   await nextTick()
 })
 
-test('自由模式：关闭所有设备为空管；只开 V1002 就有甲醇流动，不要求连接软管、启动泵或完整门控', () => {
+test('自由操作不造源：单开 V1002 只能静态填充到关阀，真实通路打开后才流动', () => {
   const devices = closedPlant()
   assert.equal(manual(devices).summary.flowingCount, 0)
   Object.assign(devices.V1002, { value: 10, working: true })
   const before = JSON.stringify(devices), result = manual(devices)
   assert.equal(result.pipes['1755764815355'].medium, 'methanol')
-  assert.equal(result.pipes['1755764815355'].flowing, true)
-  assert.equal(result.pipes['1756445796569'].flowing, true)
-  assert.equal(result.summary.flowingCount, result.summary.filledCount)
-  assert.equal(result.pipes['1754630791'].filled, false, '不穿越全部关闭的阀门到储罐')
-  assert.equal(JSON.stringify(devices), before, '渲染不能修改设备')
+  assert.equal(result.pipes['1756445796569'].filled, true)
+  assert.equal(result.pipes['1755764815355'].flowing, false)
+  assert.equal(result.pipes['1756445796569'].flowing, false)
+  assert.equal(result.pipes['1754630791'].filled, false)
+  assert.equal(JSON.stringify(devices), before)
+  openBunkeringPath(devices)
+  assert.equal(manual(devices).pipes['1755764815355'].flowing, true)
 })
 
-test('孤立开启甲醇加注 V1602 也能看到局部管段，关阀后撤销预览', () => {
+test('孤立开启 V1602 不再凭空填充或流动，不能绕过关闭的上游阀门', () => {
   const devices = closedPlant()
   devices.V1602.value = 100
   const result = manual(devices)
-  assert.equal(result.pipes['40'].medium, 'methanol')
-  assert.equal(result.pipes['40'].flowing, true)
-  assert.equal(result.pipes['36'].flowing, true)
+  assert.equal(result.pipes['40'].filled, false)
+  assert.equal(result.pipes['36'].filled, false)
+  assert.equal(result.summary.flowingCount, 0)
   assert.equal(result.pipes['1754630791'].filled, false)
-  devices.V1602.value = 0
-  assert.equal(manual(devices).summary.flowingCount, 0)
 })
 
 test('自由模式暂停只停止动画，继续后恢复；不改正式流程的门控和填充规则', () => {
   const devices = closedPlant()
-  devices.V1002.value = 100
+  openBunkeringPath(devices)
   const beforeFormal = resolvePiping(devices, { flowId: 'bunkering', running: true })
   const running = manual(devices), paused = manual(devices, false)
   assert.equal(paused.summary.flowingCount, 0)
   for (const [id, pipe] of Object.entries(running.pipes)) assert.deepEqual({ ...pipe, flowing: false }, paused.pipes[id])
   assert.equal(manual(devices).summary.flowingCount, running.summary.flowingCount)
   assert.deepEqual(resolvePiping(devices, { flowId: 'bunkering', running: true }), beforeFormal)
+  Object.assign(devices.M1602, { value: 0, working: false })
   const formal = resolvePiping(devices, { flowId: 'bunkering', running: true }, gatedTopology)
   assert.equal(formal.pipes.after.filled, true)
   assert.equal(formal.pipes.after.flowing, false, '正式模式仍要求完整门控')
@@ -80,6 +85,7 @@ test('自由模式暂停只停止动画，继续后恢复；不改正式流程�
 
 test('自由模式允许故障/锁定阀门流动，但不能悄悄清除故障；非自由模式仍阻断', () => {
   const devices = closedPlant()
+  openBunkeringPath(devices)
   Object.assign(devices.V1002, { value: 100, error: true, enabled: false })
   assert.equal(manual(devices).pipes['1756445796569'].flowing, true)
   assert.equal(devices.V1002.error, true)
@@ -177,6 +183,8 @@ test('待机直接开阀即启动自由运行，无须先点击手动按钮，�
   assert.equal(simulator.isFreeManual(), true)
   assert.equal(simulator.manualActivity.value, '甲醇加注试验')
   assert.equal(simulator.state.speed, 1)
+  assert.equal(manual(simulator.state.devices).summary.flowingCount, 0, '会话开始不等于通路已经贯通')
+  openBunkeringPath(simulator.state.devices)
   assert.ok(manual(simulator.state.devices).summary.flowingCount > 0)
   assert.equal(simulator.state.safetyComplete, false)
 })

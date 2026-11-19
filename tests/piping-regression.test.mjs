@@ -47,7 +47,7 @@ test('未知节点不被自动当作开阀；显式汇合节点才允许介质�
 })
 
 test('自定义拓扑别名同样用于填充、阻断及动画，不偷偷使用生产别名表', () => {
-  const t = smallTopology([route('S', 'A', 'in'), route('A', 'B', 'branch')], [{ kind: 'root', node: 'S', medium: 'nitrogen' }],
+  const t = smallTopology([route('S', 'A', 'in'), route('A', 'B', 'branch'), route('B', 'Outdoor@B', 'out')], [{ kind: 'root', node: 'S', medium: 'nitrogen' }],
     [{ pipe: 'branch', medium: 'nitrogen', flowForward: false }], { branch: 'main' })
   assert.equal(canonicalPipeId('Pipebranch', t), 'main')
   const closed = resolve({ A: valve('A', 0), B: valve('B') }, 'test', true, t)
@@ -214,22 +214,28 @@ test('真实加注入液从 V1002，罐顶排气从 M1101：液路甲醇、出�
   assert.equal(closedInlet.summary.flowingCount, 0, '完整加注通路未满足时不流动')
 })
 
-test('导入只取有效 C# 路由/别名，并覆盖所有流程的组级门控', () => {
+test('导入采用有效路由/别名，分组数据和旧版平铺数据均有可靠动画定义', () => {
   assert.equal(canonicalPipeId('19875226841'), '1', '有尾部空格的氮气源别名不能漏掉')
   assert.equal(canonicalPipeId('42554'), '162', '注释别名不能抢占有效别名')
   assert.ok(!pipingTopology.routes.some(route => route.from === 'C1401' && route.to === 'V1402'))
   const actualRoute = pipingTopology.routes.find(route => route.from === 'D1604' && route.to === 'M1602')
   assert.ok(actualRoute.segments.some(segment => segment.pipe === '1756445276570'))
-  assert.ok(Object.keys(pipingTopology.flowGroups).length > 30)
+  const groups = pipingTopology.flowGroups
   for (const profile of Object.values(pipingTopology.flowProfiles)) {
+    assert.ok(Array.isArray(profile.activePipes), `${profile.id}: has an authored flat animation fallback`)
+    for (const pipe of profile.activePipes) assert.equal(typeof pipe.flowForward, 'boolean')
     for (const name of profile.animationGroups) {
-      const group = pipingTopology.flowGroups[name]
+      if (!groups) continue // The committed legacy archive has names and flat pipes, but no group gate table.
+      const group = groups[name]
       assert.ok(group, `${profile.id}: ${name} has a gate`)
       assert.ok(group.valves.length + group.runningDevices.length > 0, `${name}: never ungated`)
       for (const pipe of group.activePipes) assert.equal(typeof pipe.flowForward, 'boolean')
     }
   }
-  for (const [name, group] of Object.entries(pipingTopology.flowGroups)) {
-    if (name.startsWith('水乙二醇副路循环_热水_')) assert.ok(group.activePipes.every(pipe => pipe.medium === 'hot-water'), `${name}: 不把副热水错标为主乙二醇`)
+  if (groups) {
+    assert.ok(Object.keys(groups).length > 30)
+    for (const [name, group] of Object.entries(groups)) {
+      if (name.startsWith('水乙二醇副路循环_热水_')) assert.ok(group.activePipes.every(pipe => pipe.medium === 'hot-water'), `${name}: 不把副热水错标为主乙二醇`)
+    }
   }
 })

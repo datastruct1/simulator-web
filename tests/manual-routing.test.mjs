@@ -12,12 +12,13 @@ function canonical(raw) {
   while (archive.canonicalPipes[id] && archive.canonicalPipes[id] !== id && guard++ < 1000) id = archive.canonicalPipes[id]
   return id
 }
-function readyPlant() {
+function readyPlant(flowId = '') {
   const devices = structuredClone(initialDevices)
   for (const device of Object.values(devices)) {
     if (['valve', 'hose', 'pump', 'fan', 'engine', 'heater'].includes(device.kind)) Object.assign(device, { value: device.id === 'C1401' ? 75 : 100, working: true, enabled: true, error: false })
     if (device.kind === 'hose') device.connected = true
   }
+  if (flowId === 'bunkering') for (const id of ['M1005', 'V1004', 'V1603', 'V1604', 'V1609']) Object.assign(devices[id], { value: 0, working: false })
   return devices
 }
 const manual = (devices, id, running = true) => resolvePiping(devices, { flowId: '__manual__', manualFlowId: id, running })
@@ -36,14 +37,15 @@ function assertProfile(result, profile) {
       assert.ok([...profile.sources, ...profile.activePipes].some(entry => entry.medium === pipe.medium), `${profile.id}/${id}: current process medium only`)
       continue
     }
-    assert.equal(pipe.medium, oracle.medium, `${profile.id}/${id}: medium`)
+    if (pipe.flowing) assert.equal(pipe.medium, oracle.medium, `${profile.id}/${id}: moving medium must match demo`)
+    else assert.ok([...profile.sources, ...profile.activePipes].some(entry => entry.medium === pipe.medium), `${profile.id}/${id}: static filling comes from a real process source`)
     assert.equal(pipe.forward, oracle.flowForward, `${profile.id}/${id}: authored demo direction`)
   }
 }
 
 for (const [id, profile] of Object.entries(archive.flowProfiles)) {
   test(`${profile.name}：手动每段方向/介质与演示一致，暂停和故障不改方向，其他工艺不串入`, () => {
-    const devices = readyPlant(), before = JSON.stringify(devices)
+    const devices = readyPlant(id), before = JSON.stringify(devices)
     const demoBefore = resolvePiping(devices, { flowId: id, running: true })
     const result = manual(devices, id)
     assertProfile(result, profile)
@@ -67,12 +69,15 @@ for (const [id, profile] of Object.entries(archive.flowProfiles)) {
   })
 }
 
-test('同一加注软管34：加注为甲醇、岸载惰化为氮气；不能沿用上一个工艺的颜色', () => {
-  const devices = readyPlant()
+test('共享软管介质必须由真实连通源决定，切换工艺不会自动开阀或造源', () => {
+  const devices = readyPlant('bunkering')
   assert.equal(manual(devices, 'bunkering').pipes['34'].medium, 'methanol')
+  assert.equal(manual(devices, 'shore-inerting').pipes['34'].filled, false, '岸载氮气入口仍关闭')
+  for (const id of ['M1005', 'V1004', 'V1603', 'V1604']) Object.assign(devices[id], { value: 100, working: true })
   assert.equal(manual(devices, 'shore-inerting').pipes['34'].medium, 'nitrogen')
+  for (const id of ['M1005', 'V1004', 'V1603', 'V1604']) Object.assign(devices[id], { value: 0, working: false })
   assert.equal(manual(devices, 'bunkering').pipes['34'].medium, 'methanol')
-  assert.equal(manual(devices, 'bunkering').pipes['41'].medium, 'nitrogen', '加注液路与排气不能变成同一种介质')
+  assert.equal(manual(devices, 'bunkering').pipes['41'].medium, 'nitrogen')
 })
 
 test('发动机117/125：供应甲醇与供应扫气方向相同，介质必须分别是甲醇/氮气', () => {
@@ -103,9 +108,13 @@ test('局部先开下游阀不能逆转方向；供应63和排岸166/167必须�
   for (const device of Object.values(devices)) if (['valve', 'hose', 'pump', 'engine'].includes(device.kind)) Object.assign(device, { value: 0, working: false, connected: false })
   devices.M1102.value = 100
   const downstreamFirst = manual(devices, 'bunkering')
-  assert.equal(downstreamFirst.pipes['1754630791'].flowing, true)
+  assert.equal(downstreamFirst.pipes['1754630791'].filled, false, '孤立下游阀不造源')
   assert.equal(downstreamFirst.pipes['1754630791'].forward, false)
   devices.V1002.value = 100
+  assert.equal(manual(devices, 'bunkering').pipes['1754630791'].forward, false)
+  for (const id of ['M1004', 'M1003', 'M1002', 'M1602', 'V1602']) Object.assign(devices[id], { value: 100, working: true })
+  Object.assign(devices.Rg002, { value: 100, working: true, connected: true })
+  assert.equal(manual(devices, 'bunkering').pipes['1754630791'].flowing, true)
   assert.equal(manual(devices, 'bunkering').pipes['1754630791'].forward, false)
 })
 

@@ -35,7 +35,7 @@ const flowPages = computed(() => {
       <small data-testid="manual-medium-label">{{ media }} · 与对应演示定义一致</small>
     </div>
     <template v-if="!collapsed">
-      <p class="sandbox-note">选工艺只确定方向和介质，不载入工况、不自动开阀。任意顺序操作，安全只提示、不拦截；开阀显示该工艺的局部流动。不匹配的管段不猜测介质，请切换对应工艺。</p>
+      <p class="sandbox-note">任意顺序操作，安全只提示、不拦截，但不会绕过关阀或凭空造源。填充从工艺介质源延伸；贯通出口或运行泵循环后才流动。关阀前可以静态填充，孤立支路和死端不播放流动。</p>
       <nav class="test-pages" aria-label="当前工艺页面"><button v-for="page in flowPages" :key="page.id" type="button" @click="navigate(page.id)">{{ page.name }}</button></nav>
       <div class="warnings" aria-live="polite" aria-relevant="additions removals">
         <article v-for="warning in state.manualWarnings" :key="warning.id" :data-manual-warning="warning.id">
