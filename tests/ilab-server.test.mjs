@@ -52,9 +52,9 @@ test('signature, ticket preserved, cookie, CSRF, identity, idempotency and refre
   assert.equal((await s.request('results', { result }, { 'x-csrf-token': '' })).r.status, 403)
   assert.equal((await s.request('auth', { ticket: 'x' }, { origin: 'https://evil.example' })).r.status, 403)
   s.advance(20000)
-  assert.deepEqual((await s.request('results', { result })).data, { status: 'uploaded', originId: result.originId, id: 'record1' })
+  assert.deepEqual((await s.request('results', { result })).data, { status: 'uploaded', originId: result.originId, id: 'record1', platformResponse: { code: 0, id: 'record1' } })
   assert.equal(refreshes, 2)
-  await s.request('results', { result }); assert.equal(uploads, 1)
+  assert.deepEqual((await s.request('results', { result })).data.platformResponse, { code: 0, id: 'record1' }); assert.equal(uploads, 1)
   assert.equal((await s.request('results', { result: { ...result, score: 81 } })).r.status, 409)
   const files = await readdir(s.dataDir)
   const disk = await readFile(join(s.dataDir, files[0]), 'utf8'); assert.ok(!disk.includes('TOKEN')); assert.ok(!disk.includes('SECRET'))
@@ -63,7 +63,7 @@ test('signature, ticket preserved, cookie, CSRF, identity, idempotency and refre
 
 test('business failure does not report uploaded', async t => {
   const s = await setup(t, async url => json(url.pathname.endsWith('/token') ? auth() : { code: 19, msg: 'SECRET TOKEN' }))
-  await s.login(); const r = await s.request('results', { result }); assert.equal(r.r.status, 502); assert.equal(r.data.code, 19)
+  await s.login(); const r = await s.request('results', { result }); assert.equal(r.r.status, 502); assert.equal(r.data.code, 19); assert.deepEqual(r.data.platformResponse, { code: 19 })
   assert.equal((await s.request('results?originId=sample_1')).data.status, 'failed')
 })
 

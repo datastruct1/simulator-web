@@ -25,6 +25,7 @@ export interface IlabUploadJob {
   message: string
   result?: IlabExperimentResult
   id?: string
+  platformResponse?: { code: number; id?: string | number }
   report?: { status: 'uploading' | 'uploaded' | 'failed' | 'uncertain'; message: string; id?: string }
 }
 const storageKey = 'simulator_web.ilab.v1'
@@ -74,7 +75,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const value = await response.json()
   if (!response.ok) {
     const error = new Error(typeof value.error === 'string' ? value.error : '实验空间对接服务请求失败。')
-    Object.assign(error, { status: response.status, uncertain: value.status === 'uncertain' })
+    Object.assign(error, { status: response.status, uncertain: value.status === 'uncertain', platformResponse: value.platformResponse })
     throw error
   }
   return value as T
@@ -163,15 +164,18 @@ async function retry(job: IlabUploadJob) {
   if (failure) { job.status = 'blocked'; job.message = failure.msg; return }
   busy.add(job.originId)
   job.status = 'uploading'; job.message = '正在回传；若上次状态不明确，服务端会先查询确认。'
+  job.platformResponse = undefined
   try {
-    const response = await request<{ status: string; originId: string; id?: string; confirmed?: boolean }>('results', { method: 'POST', body: JSON.stringify({ result: job.result }) })
+    const response = await request<{ status: string; originId: string; id?: string; confirmed?: boolean; platformResponse?: { code: number; id?: string | number } }>('results', { method: 'POST', body: JSON.stringify({ result: job.result }) })
+    job.platformResponse = response.platformResponse
     if (response.status !== 'uploaded' || response.originId !== job.originId || (!response.id && response.confirmed !== true)) throw new Error('回传响应未确认成功，请检查平台记录。')
     job.status = 'uploaded'; job.id = response.id
     job.message = response.id
       ? `实验空间已接收${job.result.status === 1 ? '已完成' : '未完成'}实验记录，平台记录 ID：${response.id}`
       : '已通过平台查询确认实验记录存在；查询未返回平台记录 ID，AI 字段仍应在平台核查。'
   } catch (error) {
-    const info = error as { status?: number; uncertain?: boolean }
+    const info = error as { status?: number; uncertain?: boolean; platformResponse?: { code: number; id?: string | number } }
+    job.platformResponse = info.platformResponse
     job.status = info.uncertain || !info.status ? 'uncertain' : 'failed'
     job.message = error instanceof Error ? error.message : '回传失败。'
   } finally { busy.delete(job.originId) }

@@ -137,3 +137,14 @@ test('注销时立即解绑身份，注销请求尚未完成也不能发送晚�
   assert.equal(calls.filter(call => call.path.endsWith('/results')).length, 0)
   release(Response.json({ status: 'logged_out' })); await logout
 })
+
+test('平台上传返回码与记录 ID 可见，拒绝时不泄露其他上游字段', async t => {
+  setup(t, path => path.endsWith('/results') ? Response.json({ error: '平台拒绝', platformResponse: { code: 19 } }, { status: 502 }) : undefined)
+  await ilab.initialise()
+  const { operation, score } = fixture()
+  ilab.beginOperation(operation.id, operation.startedAt)
+  const job = ilab.submitOperation(operation, score)
+  await settled(job)
+  assert.equal(job.status, 'failed')
+  assert.deepEqual(job.platformResponse, { code: 19 })
+})

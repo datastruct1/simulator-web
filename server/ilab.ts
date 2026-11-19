@@ -10,7 +10,7 @@ export interface IlabConfig {
   sessionTtlMs?: number; maxSessions?: number; timeoutMs?: number
 }
 type Session = { username: string; displayName: string; csrfToken: string; expiresAt: number; sessionId: string; token: string; originalToken: string; tokenExpires: number; refreshes: number; refreshing?: Promise<string> }
-type RecordEntry = { result: IlabExperimentResult; status: 'uploaded' | 'failed' | 'uncertain'; id?: string | number; confirmed?: boolean; attachment?: { hash: string; status: 'uploaded' | 'failed' | 'uncertain'; id?: string } }
+type RecordEntry = { result: IlabExperimentResult; status: 'uploaded' | 'failed' | 'uncertain'; id?: string | number; confirmed?: boolean; platformResponse?: { code: number; id?: string | number }; attachment?: { hash: string; status: 'uploaded' | 'failed' | 'uncertain'; id?: string } }
 class Failure extends Error {
   http: number; code?: string | number; uncertain: boolean
   constructor(http: number, message: string, code?: string | number, uncertain = false) { super(message); this.http = http; this.code = code; this.uncertain = uncertain }
@@ -184,24 +184,26 @@ export function createIlabServer(config: IlabConfig, options: { fetch?: typeof f
         let entry = await load(key)
         if (entry && result && canonical(entry.result) !== canonical(result)) throw new Failure(409, 'originId已绑定其他结果', 'PAYLOAD_CONFLICT')
         if (entry?.status === 'uncertain') entry = await confirm(session, key, entry)
-        if (entry?.status === 'uploaded') return send(200, { status: 'uploaded', originId, ...(entry.id !== undefined ? { id: String(entry.id) } : {}), ...(entry.confirmed ? { confirmed: true } : {}) })
+        if (entry?.status === 'uploaded') return send(200, { status: 'uploaded', originId, ...(entry.id !== undefined ? { id: String(entry.id) } : {}), ...(entry.confirmed ? { confirmed: true } : {}), ...(entry.platformResponse ? { platformResponse: entry.platformResponse } : {}) })
         if (!result) { if (!entry) throw new Failure(404, '没有当前用户的记录'); return send(200, { status: entry.status, originId }) }
         const t = await token(session)
         entry = { result, status: 'uncertain' }; await save(key, entry)
         const r = await upstream('/open/api/v2/data_upload', { access_token: t }, result)
         if (typeof r.code === 'number' && r.code !== 0) {
-          entry.status = 'failed'; await save(key, entry)
-          throw new Failure(502, `实验空间拒绝实验结果（返回码 ${r.code}），请对照官方技术说明检查。`, r.code)
+          entry.status = 'failed'; entry.platformResponse = { code: r.code }; await save(key, entry)
+          const failure = new Failure(502, `实验空间拒绝实验结果（返回码 ${r.code}），请对照官方技术说明检查。`, r.code)
+          Object.assign(failure, { platformResponse: entry.platformResponse }); throw failure
         }
         if (r.code !== 0 || !((typeof r.id === 'string' && r.id.length > 0) || (typeof r.id === 'number' && Number.isSafeInteger(r.id)))) {
           throw new Failure(502, '平台响应没有明确确认成功，请先查询记录；不能直接重复上传。', 'UPSTREAM_UNCERTAIN', true)
         }
-        entry.status = 'uploaded'; entry.id = r.id; await save(key, entry)
-        return send(200, { status: 'uploaded', originId, id: String(r.id) })
+        entry.status = 'uploaded'; entry.id = r.id; entry.platformResponse = { code: r.code, id: r.id }; await save(key, entry)
+        return send(200, { status: 'uploaded', originId, id: String(r.id), platformResponse: entry.platformResponse })
       } finally { locks.delete(key) }
     } catch (e) {
       const error = e instanceof Failure ? e : new Failure(500, '服务暂时不可用')
-      send(error.http, { error: error.message, ...(error.code ? { code: error.code } : {}), ...(error.uncertain ? { status: 'uncertain' } : {}) })
+      const platformResponse = (error as Failure & { platformResponse?: { code: number } }).platformResponse
+      send(error.http, { error: error.message, ...(error.code ? { code: error.code } : {}), ...(error.uncertain ? { status: 'uncertain' } : {}), ...(platformResponse ? { platformResponse } : {}) })
     }
   }).on('clientError', (_error, socket) => { socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n') })
 }

@@ -30,6 +30,7 @@ function retryWrong() { if (workspace.startTheory({ questions: wrongQuestions.va
   <BaseModal :title="record.kind === 'theory' ? '理论题成绩详情' : '成绩详情 · 操作考核'" :width="1120" @close="emit('close')">
     <div class="ws-modal-content">
       <div v-if="upload" class="ws-note" :class="{ warning: upload.status !== 'uploaded' }" role="status" data-testid="ilab-score-status"><strong>实验空间 · {{ upload.mode === 'test' ? '测试环境' : '正式环境' }}</strong><p>{{ upload.message }}</p><small>本项目记录 ID：{{ upload.originId }}。平台确认回传与本地评分是两个独立状态。</small></div>
+      <div v-if="upload" class="ws-note" data-testid="ilab-platform-response"><strong>实验空间返回值（仅展示安全字段）</strong><pre v-if="upload.platformResponse" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ JSON.stringify(upload.platformResponse, null, 2) }}</pre><p v-else>尚无平台上传接口返回值；本地校验、网络错误或查询确认不会生成上传返回值。</p></div>
       <div v-if="upload?.report" class="ws-note" role="status" data-testid="ilab-report-status">{{ upload.report.message }}</div>
       <div v-if="!visible" class="empty-state"><UiIcon name="LockKeyhole" :size="48" class="ws-empty-icon" /><h3>已提交本地考核</h3><p>教师设置了“成绩暂不可见”。详细分数及答案仅能在本地教师工作台查看。</p><p class="ws-subtext">提交时间：{{ formatDate(record.submittedAt) }}</p></div>
       <template v-else>
