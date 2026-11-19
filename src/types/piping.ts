@@ -108,6 +108,8 @@ export interface PipeVisualState {
   forward: boolean
   sourceId?: string
   blockedBy?: string
+  /** Static filling extended through the verified 117/125 inner-tube junction. */
+  fillOrigin?: 'inner-connection'
 }
 
 export interface PipingConflict {

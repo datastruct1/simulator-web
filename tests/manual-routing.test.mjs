@@ -27,7 +27,15 @@ function assertProfile(result, profile) {
   for (const [id, pipe] of Object.entries(result.pipes)) {
     if (!pipe.filled) { assert.equal(pipe.flowing, false); continue }
     const oracle = expected.get(id)
-    assert.ok(oracle, `${profile.id}: ${id} cannot borrow a definition from another process`)
+    if (!oracle) {
+      // Connected inner-tube dead legs may fill beyond the demo animation mask.
+      // They must remain static, explicitly attributed, and use this process's
+      // source/authored medium -- never the decorative outer N2 jacket.
+      assert.equal(pipe.fillOrigin, 'inner-connection', `${profile.id}/${id}: only a verified inner connection can extend fill`)
+      assert.equal(pipe.flowing, false, 'no guessed animation direction for extended filling')
+      assert.ok([...profile.sources, ...profile.activePipes].some(entry => entry.medium === pipe.medium), `${profile.id}/${id}: current process medium only`)
+      continue
+    }
     assert.equal(pipe.medium, oracle.medium, `${profile.id}/${id}: medium`)
     assert.equal(pipe.forward, oracle.flowForward, `${profile.id}/${id}: authored demo direction`)
   }

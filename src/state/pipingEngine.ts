@@ -26,6 +26,7 @@ interface Graph {
   allPipes: Set<string>
   virtualSources: Set<string>
   sinkTanks: Set<string>
+  innerJunctions: Set<string>
   canonical: (pipe: string) => string
 }
 
@@ -35,11 +36,15 @@ interface FillEntry {
   distance: number
   priority: number
   forward: boolean
+  throughInner?: boolean
 }
 
 const PIPE_PREFIX = /^pipe/i
 const OUTDOOR_PREFIX = 'Outdoor@'
 const CHECK_VALVE = /^d\d/i
+// These are the existing decorative N2 jacket IDs. They are never used as
+// inner-tube junctions or given additional inner-connection filling.
+const NITROGEN_JACKETS = new Set(['116', '118', '120', '122', '124', '126', '128', '130', '1756782337', '370', '376', '378', '380', '386', '388'])
 
 // ---------------------------------------------------------------------------
 // canonical pipe ids
@@ -61,7 +66,26 @@ export function emptyPipeVisualState(pipeId: string): PipeVisualState {
 // graph construction
 // ---------------------------------------------------------------------------
 function buildGraph(topology: PipingTopology): Graph {
-  const routes = topology.routes
+  const innerJunctions = new Set<string>()
+  const joins = [
+    { pipe: '117', pairs: [['M1302', 'Engine02'], ['D1421', 'H1302']] },
+    { pipe: '125', pairs: [['M1301', 'Engine01'], ['D1411', 'H1301']] },
+  ].filter(join => join.pairs.every(([from, to]) => topology.routes.some(route => route.from === from && route.to === to && route.segments.some(segment => canonicalPipeId(segment.pipe, topology) === join.pipe))))
+  // The WPF supply and purge paths share their inner tube mid-route. Splitting
+  // only these two verified joins lets filling reach the main pipe up to its
+  // next closed valve, without joining overlapping outer nitrogen jackets.
+  const routes = topology.routes.flatMap(route => {
+    const join = joins.find(join => join.pairs.some(([from, to]) => route.from === from && route.to === to))
+    if (!join) return [route]
+    const index = route.segments.findIndex(segment => canonicalPipeId(segment.pipe, topology) === join.pipe)
+    if (index < 0) return [route]
+    const junction = `InnerTube@${join.pipe}`
+    innerJunctions.add(junction)
+    return [
+      { from: route.from, to: junction, segments: route.segments.slice(0, index + 1) },
+      { from: junction, to: route.to, segments: route.segments.slice(index) },
+    ]
+  })
   const adjacency: Graph['adjacency'] = new Map()
   const routeByPipe: Graph['routeByPipe'] = new Map()
   const allPipes = new Set<string>()
@@ -89,6 +113,7 @@ function buildGraph(topology: PipingTopology): Graph {
     allPipes,
     virtualSources: new Set(topology.virtualSources || []),
     sinkTanks: new Set((topology.sinkTanks || []).map(n => n.toUpperCase())),
+    innerJunctions,
     canonical: pipe => canonicalPipeId(pipe, topology),
   }
 }
@@ -159,10 +184,12 @@ function canEnterNode(
   index: Map<string, DeviceState>,
   virtualSources: Set<string>,
   sinkTanks: Set<string>,
+  innerJunctions: Set<string>,
 ): boolean {
   if (node.startsWith(OUTDOOR_PREFIX)) return false
   if (virtualSources.has(node)) return false
   if (sinkTanks.has(node.toUpperCase())) return false
+  if (innerJunctions.has(node)) return true
   const device = findDevice(node, index)
   if (!device) return false
   if (device.kind === 'valve') {
@@ -192,6 +219,10 @@ function fillFromSources(
     if (!existing) {
       fills.set(cp, entry)
       return
+    }
+    if (entry.medium === existing.medium && entry.sourceId === existing.sourceId) {
+      entry.throughInner = entry.throughInner || existing.throughInner
+      existing.throughInner = entry.throughInner
     }
     // Keep each source's inlet its own colour. Only equal-distance shared
     // segments use declaration order as a deterministic, non-mixing tie-break.
@@ -228,20 +259,21 @@ function fillFromSources(
     const seed = source.kind === 'root' ? source.node : (source.terminal ?? source.node)
     const restrictTo = source.kind === 'root' ? source.via : undefined
     if (isBlockingDevice(seed, index)) { markBlocked(seed, -1); return }
-    const queue: Array<{ node: string; distance: number; restricted: boolean }> = [
-      { node: seed, distance: 0, restricted: restrictTo !== undefined },
+    const queue: Array<{ node: string; distance: number; restricted: boolean; throughInner: boolean }> = [
+      { node: seed, distance: 0, restricted: restrictTo !== undefined, throughInner: graph.innerJunctions.has(seed) },
     ]
     const visited = new Set<string>([seed])
     const visitedRoutes = new Set<number>()
     let steps = 0
     while (queue.length && steps++ < 100000) {
-      const { node, distance, restricted } = queue.shift()!
+      const { node, distance, restricted, throughInner } = queue.shift()!
       const adjacent = graph.adjacency.get(node) ?? []
       for (const { routeIndex, route, other } of adjacent) {
         if (restricted && other !== restrictTo) continue
         if (visitedRoutes.has(routeIndex) || !canLeaveNode(node, route, index)) continue
         visitedRoutes.add(routeIndex)
         const movingForward = node === route.from
+        const inner = throughInner || graph.innerJunctions.has(node) || graph.innerJunctions.has(other)
         for (const seg of route.segments) {
           const cp = graph.canonical(seg.pipe)
           record(cp, {
@@ -250,13 +282,14 @@ function fillFromSources(
             distance,
             priority,
             forward: movingForward ? seg.forward : !seg.forward,
+            throughInner: inner,
           })
         }
         if (visited.has(other)) continue
-        const enter = canEnterNode(other, route, index, graph.virtualSources, graph.sinkTanks)
+        const enter = canEnterNode(other, route, index, graph.virtualSources, graph.sinkTanks, graph.innerJunctions)
         if (enter) {
           visited.add(other)
-          queue.push({ node: other, distance: distance + 1, restricted: false })
+          queue.push({ node: other, distance: distance + 1, restricted: false, throughInner: inner })
         } else if (isBlockingDevice(other, index)) {
           markBlocked(other, routeIndex)
         }
@@ -388,6 +421,8 @@ function resolveManualPiping(devices: Record<string, DeviceState>, options: Pipi
     const authored = palette.pipes.get(id)
     pipes[id] = fill && authored
       ? { pipeId: id, medium: authored.medium, filled: true, flowing: options.running, forward: authored.flowForward, sourceId: fill.sourceId }
+      : fill?.throughInner && profile && !NITROGEN_JACKETS.has(id)
+        ? { pipeId: id, medium: fill.medium, filled: true, flowing: false, forward: fill.forward, sourceId: fill.sourceId, fillOrigin: 'inner-connection' }
       : { ...emptyPipeVisualState(id), blockedBy: resolved.blockedBy.get(id) || local.blockedBy.get(id) }
   }
   const rows = Object.values(pipes)

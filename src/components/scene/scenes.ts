@@ -4,8 +4,33 @@ import { finiteGaugeNumber, gaugeValueScale } from './gauge'
 
 const archive = generated as unknown as SceneArchive
 
-/** Imported, deterministic WPF scenes. Rebuild with scripts/import_scenes.py. */
-export const scenes = archive.scenes
+// The left-of-canvas H1241/H1242/H1243 branch is a redundant diagram fragment
+// in the nitrogen page (dev-pic/pic1.png). Remove its drawings only: keep the
+// imported archive, global piping definitions and all other device controls.
+const redundantNitrogenNodes = new Set([
+  'nitrogen-pipe-13', 'nitrogen-pipe-14', 'nitrogen-pipe-15',
+  'nitrogen-pipe-23', 'nitrogen-pipe-24', 'nitrogen-text-2',
+  'nitrogen-valve-9', 'nitrogen-valve-10', 'nitrogen-valve-11',
+])
+const nitrogen = archive.scenes.nitrogen
+const nitrogenNodes = nitrogen.nodes.filter(node => !redundantNitrogenNodes.has(node.id))
+
+/** Imported scenes with explicit, page-local presentation cleanup. */
+export const scenes: SceneArchive['scenes'] = {
+  ...archive.scenes,
+  nitrogen: {
+    ...nitrogen,
+    nodes: nitrogenNodes,
+    stats: {
+      ...nitrogen.stats,
+      nodes: nitrogenNodes.length,
+      devices: new Set(nitrogenNodes.filter(node => !['pipe', 'hose'].includes(node.kind)).map(node => node.deviceId).filter(Boolean)).size,
+      interactive: nitrogenNodes.filter(isInteractiveNode).length,
+      pipes: nitrogenNodes.filter(node => ['pipe', 'hose'].includes(node.kind)).length,
+      valves: nitrogenNodes.filter(node => node.kind === 'valve').length,
+    },
+  },
+}
 export const sceneVectors = archive.symbols
 export const sceneSources = archive.sources
 export const sceneIds = Object.keys(scenes) as SceneId[]
