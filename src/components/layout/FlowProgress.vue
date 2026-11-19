@@ -1,0 +1,22 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import UiIcon from '../common/UiIcon.vue'
+import { useSimulator } from '../../state/simulator'
+
+const { state, currentFlow, currentStep, nextStep, stopFlow, openModal } = useSimulator()
+const collapsed = ref(false)
+const percentage = computed(() => currentFlow.value ? Math.round(state.stepIndex / currentFlow.value.steps.length * 100) : 0)
+const runStatus = computed(() => state.flowRunning ? state.paused ? '已暂停' : '正在运行' : state.stepIndex >= (currentFlow.value?.steps.length || 0) ? '已完成' : '已停止')
+watch(() => state.flowId, () => { collapsed.value = false })
+</script>
+
+<template>
+  <aside v-if="state.flowId && currentFlow && !state.workspaces.activeAssessment?.customScene && !(state.workspaces.activeAssessment?.kind === 'operation' && state.workspaces.activeAssessment?.mode === 'exam')" class="flow-progress" :class="{ collapsed }" aria-label="流程操作进度">
+    <header @click="collapsed = !collapsed"><UiIcon name="Workflow" :size="16" /><strong>{{ currentFlow.name }}</strong><span class="flow-mode">{{ state.autoDemo ? '演示' : '手动' }}</span><UiIcon :name="collapsed ? 'ChevronUp' : 'ChevronDown'" :size="15" /></header>
+    <template v-if="!collapsed"><div class="progress-content"><div class="progress-top"><span>{{ runStatus }}</span><strong>{{ percentage }}%</strong></div><div class="progress-track"><i :style="{ width: `${percentage}%` }" /></div><div class="current-step"><span>{{ currentStep?.stage || '完成' }}</span><strong>{{ currentStep?.name || '全部操作步骤已完成' }}</strong><p>{{ currentStep?.description || '可以保存工况，或开始下一个流程。' }}</p></div><div class="step-preview"><div v-for="(step, index) in currentFlow.steps.slice(Math.max(0, state.stepIndex - 1), state.stepIndex + 3)" :key="index" :class="{ done: state.stepIndex > Math.max(0, state.stepIndex - 1) + index, active: state.stepIndex === Math.max(0, state.stepIndex - 1) + index }"><i /><span>{{ step.name }}</span></div></div></div><footer><button class="btn btn-sm" title="完整操作提示" @click="openModal('hint', '操作提示')"><UiIcon name="ListChecks" :size="14" />步骤</button><button v-if="state.flowRunning" class="btn btn-sm" @click="state.paused = !state.paused"><UiIcon :name="state.paused ? 'Play' : 'Pause'" :size="14" />{{ state.paused ? '继续' : '暂停' }}</button><button v-if="state.flowRunning" class="btn btn-primary btn-sm" @click="nextStep()">{{ state.autoDemo ? '下一步' : '确认操作' }}<UiIcon name="ChevronRight" :size="14" /></button><button v-else class="btn btn-primary btn-sm" @click="stopFlow(); state.flowId = ''">收起</button></footer></template>
+  </aside>
+</template>
+
+<style scoped>.flow-progress{position:absolute;right:16px;bottom:14px;width:310px;background:#f7fbfff5;backdrop-filter:blur(5px);border:1px solid #8daed0;border-radius:8px;box-shadow:0 6px 25px #17437326;z-index:30;overflow:hidden}.flow-progress header{padding:10px 12px;display:flex;align-items:center;gap:8px;background:#e2effd;border-bottom:1px solid #bed4e9;color:#2a5b89;cursor:pointer}.flow-progress header strong{font-size:12px;flex:1;font-weight:600}.flow-mode{font-size:9px;padding:2px 5px;border:1px solid #a7c4e1;border-radius:3px;color:#698eae}.progress-content{padding:13px 14px 8px}.progress-top{display:flex;justify-content:space-between;font-size:10px;color:#718ca5}.progress-top strong{font-size:11px;color:#00549f}.progress-track{height:4px;margin:8px 0 13px;background:#dbe7f3;border-radius:5px;overflow:hidden}.progress-track i{display:block;background:#258bd2;height:100%;transition:width .2s}.current-step>span{font-size:9px;color:#8b9eb1}.current-step>strong{display:block;font-size:13px;color:#21486c;margin:4px 0}.current-step>p{font-size:10px;line-height:1.6;color:#68849e;margin:0 0 12px}.step-preview{border-top:1px dashed #c4d8eb;padding-top:7px}.step-preview>div{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:10px;color:#8398ac}.step-preview i{width:5px;height:5px;border-radius:50%;background:#afc2d5}.step-preview .done{color:#329275}.step-preview .done i{background:#329275}.step-preview .active{color:#0060ad;font-weight:600}.step-preview .active i{background:#1688d7;box-shadow:0 0 0 3px #1688d71a}.flow-progress footer{display:flex;gap:7px;justify-content:flex-end;padding:10px 12px;border-top:1px solid #d4e2ef;background:#f1f6fc}.collapsed{width:260px}.collapsed header{border-bottom:0}
+@media(max-width:720px){.flow-progress{width:260px;right:8px;bottom:8px}.step-preview{display:none}}
+</style>

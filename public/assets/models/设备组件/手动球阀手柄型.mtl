@@ -1,0 +1,36 @@
+newmtl Standard_1
+Ka 1 1 1
+Kd 1 1 1
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard
+Ka 0.223529 0.223529 0.223529
+Kd 0.223529 0.223529 0.223529
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_2
+Ka 0.25098 0.25098 0.25098
+Kd 0.25098 0.25098 0.25098
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_4
+Ka 0.486275 0.486275 0.486275
+Kd 0.486275 0.486275 0.486275
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_1_0
+Ka 0.654902 0.67451 0.713726
+Kd 0.654902 0.67451 0.713726
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_3
+Ka 0 0 0
+Kd 0 0 0
+Ks 0 0 0
+d 1
+Ns 0

@@ -1,0 +1,48 @@
+newmtl Color__c0c0c0ff
+Ka 0 0 0
+Kd 0.752941 0.752941 0.752941
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_1
+Ka 0.698039 0.698039 0.698039
+Kd 0.698039 0.698039 0.698039
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_3
+Ka 0 0.247059 0.235294
+Kd 0 0.247059 0.235294
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Color__009ee3ff
+Ka 0 0 0
+Kd 0 0.619608 0.890196
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Color__ffffffff
+Ka 0 0 0
+Kd 1 1 1
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Color__878c8cff
+Ka 0 0 0
+Kd 0.529412 0.54902 0.54902
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_2
+Ka 1 1 1
+Kd 1 1 1
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard
+Ka 0.792157 0.819608 0.933333
+Kd 0.792157 0.819608 0.933333
+Ks 0 0 0
+d 1
+Ns 0

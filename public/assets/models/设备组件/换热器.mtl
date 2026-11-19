@@ -1,0 +1,30 @@
+newmtl Standard
+Ka 1 0.94902 0.909804
+Kd 1 0.94902 0.909804
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_2
+Ka 0 1 1
+Kd 0 1 1
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Color__ffffffff
+Ka 0 0 0
+Kd 1 1 1
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Color__c0c0c0ff
+Ka 0 0 0
+Kd 0.752941 0.752941 0.752941
+Ks 0 0 0
+d 1
+Ns 0
+newmtl Standard_1
+Ka 1 1 1
+Kd 1 1 1
+Ks 0 0 0
+d 1
+Ns 0

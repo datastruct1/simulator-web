@@ -1,0 +1,282 @@
+[
+  {
+    "name": "体温枪",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/体温枪.obj",
+    "format": "obj",
+    "bytes": 307877
+  },
+  {
+    "name": "口罩",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/口罩.obj",
+    "format": "obj",
+    "bytes": 479942
+  },
+  {
+    "name": "呼吸罐",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/呼吸罐.obj",
+    "format": "obj",
+    "bytes": 350583
+  },
+  {
+    "name": "手套",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/手套.obj",
+    "format": "obj",
+    "bytes": 45056
+  },
+  {
+    "name": "消毒液",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/消毒液.obj",
+    "format": "obj",
+    "bytes": 3353490
+  },
+  {
+    "name": "消毒液obj",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/消毒液obj.obj",
+    "format": "obj",
+    "bytes": 3353493
+  },
+  {
+    "name": "瓶子",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/瓶子.obj",
+    "format": "obj",
+    "bytes": 564499
+  },
+  {
+    "name": "药",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/药.obj",
+    "format": "obj",
+    "bytes": 687107
+  },
+  {
+    "name": "镊子",
+    "category": "医疗用品",
+    "url": "/assets/models/医疗用品/镊子.obj",
+    "format": "obj",
+    "bytes": 200082
+  },
+  {
+    "name": "灭火器",
+    "category": "消防设施",
+    "url": "/assets/models/消防设施/灭火器.obj",
+    "format": "obj",
+    "bytes": 239141
+  },
+  {
+    "name": "防护服",
+    "category": "消防设施",
+    "url": "/assets/models/消防设施/防护服.obj",
+    "format": "obj",
+    "bytes": 3124681
+  },
+  {
+    "name": "防毒面具",
+    "category": "消防设施",
+    "url": "/assets/models/消防设施/防毒面具.obj",
+    "format": "obj",
+    "bytes": 899499
+  },
+  {
+    "name": "面罩",
+    "category": "消防设施",
+    "url": "/assets/models/消防设施/面罩.obj",
+    "format": "obj",
+    "bytes": 899277
+  },
+  {
+    "name": "90长半径弯头",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/90长半径弯头.obj",
+    "format": "obj",
+    "bytes": 287790
+  },
+  {
+    "name": "bfc系列空气过滤组 (2)",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/bfc系列空气过滤组 (2).obj",
+    "format": "obj",
+    "bytes": 1286876
+  },
+  {
+    "name": "BFC系列空气过滤组",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/BFC系列空气过滤组.obj",
+    "format": "obj",
+    "bytes": 854947
+  },
+  {
+    "name": "svs三片式调节型球阀",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/svs三片式调节型球阀.obj",
+    "format": "obj",
+    "bytes": 1656168
+  },
+  {
+    "name": "u型螺栓管夹",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/u型螺栓管夹.obj",
+    "format": "obj",
+    "bytes": 282303
+  },
+  {
+    "name": "ysvs三片式气动球阀",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/ysvs三片式气动球阀.obj",
+    "format": "obj",
+    "bytes": 1580709
+  },
+  {
+    "name": "ysvs三片式调节型球阀",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/ysvs三片式调节型球阀.obj",
+    "format": "obj",
+    "bytes": 1576451
+  },
+  {
+    "name": "单联通滤组",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/单联通滤组.3ds",
+    "format": "3ds",
+    "bytes": 1227653
+  },
+  {
+    "name": "压力变送器",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/压力变送器.obj",
+    "format": "obj",
+    "bytes": 762101
+  },
+  {
+    "name": "双联蓝式滤器",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/双联蓝式滤器.3ds",
+    "format": "3ds",
+    "bytes": 426793
+  },
+  {
+    "name": "异径三通",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/异径三通.obj",
+    "format": "obj",
+    "bytes": 83611
+  },
+  {
+    "name": "手动球阀手柄型",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/手动球阀手柄型.obj",
+    "format": "obj",
+    "bytes": 341200
+  },
+  {
+    "name": "换热器",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/换热器.obj",
+    "format": "obj",
+    "bytes": 4409186
+  },
+  {
+    "name": "接线柜",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/接线柜.obj",
+    "format": "obj",
+    "bytes": 29566
+  },
+  {
+    "name": "板式平焊钢制管法兰1",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/板式平焊钢制管法兰1.obj",
+    "format": "obj",
+    "bytes": 92174
+  },
+  {
+    "name": "止回阀",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/止回阀.obj",
+    "format": "obj",
+    "bytes": 374079
+  },
+  {
+    "name": "氧气罐",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/氧气罐.obj",
+    "format": "obj",
+    "bytes": 355652
+  },
+  {
+    "name": "温度变送器",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/温度变送器.obj",
+    "format": "obj",
+    "bytes": 1187541
+  },
+  {
+    "name": "焊接截止阀",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/焊接截止阀.obj",
+    "format": "obj",
+    "bytes": 2226803
+  },
+  {
+    "name": "燃料储罐",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/燃料储罐.3ds",
+    "format": "3ds",
+    "bytes": 976731
+  },
+  {
+    "name": "电磁阀",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/电磁阀.obj",
+    "format": "obj",
+    "bytes": 3176321
+  },
+  {
+    "name": "直角安全阀",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/直角安全阀.obj",
+    "format": "obj",
+    "bytes": 337016
+  },
+  {
+    "name": "磁力泵",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/磁力泵.obj",
+    "format": "obj",
+    "bytes": 1965988
+  },
+  {
+    "name": "突面对焊钢",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/突面对焊钢.3ds",
+    "format": "3ds",
+    "bytes": 54331
+  },
+  {
+    "name": "等径三通",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/等径三通.obj",
+    "format": "obj",
+    "bytes": 92101
+  },
+  {
+    "name": "缓冲罐体",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/缓冲罐体.obj",
+    "format": "obj",
+    "bytes": 2179459
+  },
+  {
+    "name": "质量流体计",
+    "category": "设备组件",
+    "url": "/assets/models/设备组件/质量流体计.obj",
+    "format": "obj",
+    "bytes": 1124069
+  }
+]

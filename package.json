@@ -1,0 +1,32 @@
+{
+  "name": "simulator_web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "vue-tsc -b",
+    "import:wpf": "python scripts/import_assets.py && python scripts/import_workflows.py && python scripts/import_scenes.py && python scripts/import_piping.py",
+    "test": "node --experimental-strip-types --import ./tests/helpers/register-ts.mjs --test tests/*.test.mjs",
+    "test:piping": "node --experimental-strip-types --import ./tests/helpers/register-ts.mjs --test tests/piping-*.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:piping": "playwright test tests/e2e/piping.spec.ts"
+  },
+  "dependencies": {
+    "lucide-vue-next": "^0.468.0",
+    "svg-path-properties": "^2.2.0",
+    "three": "^0.180.0",
+    "vue": "^3.5.22"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.18.0",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.12",
+    "vue-tsc": "^3.1.1"
+  }
+}
