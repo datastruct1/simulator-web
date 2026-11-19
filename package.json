@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vue-tsc -b && vite build",
+    "ilab:server": "node --env-file-if-exists=.env.ilab.local --experimental-strip-types server/main.ts",
+    "ilab:preview": "node tests/helpers/preview-ilab.mjs",
+    "build": "vue-tsc -b && tsc -p tsconfig.ilab.json && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "vue-tsc -b",
+    "typecheck:ilab": "tsc -p tsconfig.ilab.json",
     "import:wpf": "python scripts/import_assets.py && python scripts/import_workflows.py && python scripts/import_scenes.py && python scripts/import_piping.py",
     "test": "node --experimental-strip-types --import ./tests/helpers/register-ts.mjs --test tests/*.test.mjs",
+    "test:ilab": "node --experimental-strip-types --import ./tests/helpers/register-ts.mjs --test tests/ilab*.test.mjs",
     "test:piping": "node --experimental-strip-types --import ./tests/helpers/register-ts.mjs --test tests/piping-*.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:piping": "playwright test tests/e2e/piping.spec.ts"

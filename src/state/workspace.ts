@@ -8,8 +8,15 @@ import { evaluateCondition, makeScore, operationDetails, theoryDetails } from '.
 import { createFlowAssessment, feedFlowAssessment } from '../components/workspace/lib/flowAssessment'
 import { getFile, removeStoredFile, storeFile } from '../components/workspace/lib/files'
 import { decodeWorkspace, readWorkspace, writeWorkspace } from '../components/workspace/lib/storage'
+import { useIlab } from './ilab'
 
 const simulator = useSimulator()
+const ilab = useIlab()
+function platformStudentId() {
+  const session = ilab.state.session, config = ilab.state.config
+  return session && config && simulator.state.role === 'student' && simulator.state.userName === ilab.platformLabel()
+    ? `ilab:${session.mode}:${config.appid}:${encodeURIComponent(session.username)}` : ''
+}
 function seedState(): WorkspaceState {
   const createdAt = isoNow(), startAt = new Date(Date.now() - 86400000).toISOString(), endAt = new Date(Date.now() + 7 * 86400000).toISOString()
   const questions = createSeedQuestions()
@@ -43,7 +50,7 @@ let timer: ReturnType<typeof setInterval> | undefined
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let observing = false
 let processingLogs = false
-const currentStudent = computed(() => data.students.find(student => student.name === simulator.state.userName) ?? data.students.find(student => student.id === 'student-demo') ?? data.students[0])
+const currentStudent = computed(() => data.students.find(student => student.id === platformStudentId()) ?? data.students.find(student => student.name === simulator.state.userName) ?? data.students.find(student => student.id === 'student-demo') ?? data.students[0])
 const offlineStudent = computed(() => data.students.find(student => student.id === data.offlineStudentId) ?? currentStudent.value)
 const tags = computed(() => [...new Set(data.questions.flatMap(question => question.tags))].sort())
 const active = computed(() => data.activeTheory ?? data.activeOperation)
@@ -64,6 +71,13 @@ if (typeof window !== 'undefined') window.addEventListener('beforeunload', persi
 function success(message: string) { persist(); simulator.record(message); simulator.notify(message, 'success') }
 function resolveStudent(returnPage: ReturnPage): WorkspaceStudent {
   if (returnPage === 'exam' && offlineStudent.value) return offlineStudent.value
+  const platformId = returnPage === 'student' ? platformStudentId() : ''
+  if (platformId && ilab.state.session) {
+    let student = data.students.find(item => item.id === platformId)
+    if (!student) { student = { id: platformId, studentNo: ilab.state.session.username, name: ilab.platformLabel(), group: '实验空间' }; data.students.push(student) }
+    student.name = ilab.platformLabel()
+    return student
+  }
   const existing = data.students.find(student => student.name === simulator.state.userName)
   if (existing) return existing
   const student = { id: newId('student'), studentNo: `LOCAL-${data.students.length + 1}`, name: simulator.state.userName || '本地学员', group: '本地学习' }
@@ -330,6 +344,7 @@ function activateOperation(launch: OperationLaunch) {
     stoppedStateIds: [], disabledStateIds: [], finished: false, autoDemoDetected: false, runReady: true }
   if (!launch.scene && flow.assessment) session.flowAssessment = createFlowAssessment(flow.assessment, launch.maxScore)
   data.activeOperation = session; data.pendingLaunch = null; simulator.state.workspaces.pendingFlowId = ''
+  if (launch.returnPage === 'student' && platformStudentId() === launch.studentId) ilab.beginOperation(session.id, session.startedAt)
   if (launch.returnPage === 'student') data.studentTab = 'operation'; else data.examTab = 'operation'
   try { applySceneWorkload(launch.scene) } catch (error) { fail(error) }
   if (launch.scene) simulator.navigate(launch.scene.page)
@@ -471,6 +486,8 @@ function submitOperation(reason: 'manual' | 'timeout' = 'manual'): WorkspaceScor
   const score = makeScore(session, 'operation', operationDetails(session), reason, reason === 'timeout' ? session.deadlineAt ?? Date.now() : Date.now())
   if (session.autoDemoDetected) score.notes += ' 检测到自动演示，自动推进的步骤不计入手动考核。'
   if (session.flowAssessment) score.notes += `\n原 WPF 阶段判分：${session.flowAssessment.definition.source}\n${session.flowAssessment.notes.join('\n')}`
+  // Freeze the real operation evidence before the existing local session is cleared.
+  ilab.submitOperation(session, score)
   data.activeOperation = null; data.pendingLaunch = null; simulator.state.workspaces.pendingFlowId = ''; simulator.stopFlow(); finishScore(score, session.returnPage); return score
 }
 function cancelAssessment() {

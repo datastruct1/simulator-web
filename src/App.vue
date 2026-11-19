@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, type Component } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, watch, type Component } from 'vue'
 import LoginView from './components/LoginView.vue'
 import HeaderToolbar from './components/layout/HeaderToolbar.vue'
 import PageNavigation from './components/layout/PageNavigation.vue'
@@ -11,6 +11,9 @@ import UiIcon from './components/common/UiIcon.vue'
 import ManualSafetyPanel from './components/safety/ManualSafetyPanel.vue'
 import { pageAliases, pages, workflows } from './data/catalog'
 import { useSimulator } from './state/simulator'
+import { useIlab } from './state/ilab'
+import { useWorkspace } from './state/workspace'
+import IlabConnection from './components/layout/IlabConnection.vue'
 import type { SceneNode } from './types/scene'
 
 // Explicit imports let typecheck/build catch missing pages instead of failing on click.
@@ -23,6 +26,7 @@ const SceneEditor = defineAsyncComponent(() => import('./components/workspace/Sc
 const ToolDialogs = defineAsyncComponent(() => import('./components/dialogs/ToolDialogs.vue'))
 const DeviceDialog = defineAsyncComponent(() => import('./components/dialogs/DeviceDialog.vue'))
 const { state, navigate, openModal, closeModal, ensureDevice, setDevice, record, notify, startFlow, stopFlow, startClock, login, clearFault, isFreeManual, manualActivity } = useSimulator()
+const ilab = useIlab()
 const manualActive = computed(isFreeManual)
 const isScene = computed(() => pages.some(page => page.id === state.page))
 const workspace = computed(() => ({ teacher: TeacherWorkspace, student: StudentWorkspace, exam: ExamWorkspace, editor: SceneEditor } as Record<string, Component>)[state.page])
@@ -136,14 +140,41 @@ function keyboard(event: KeyboardEvent) {
   if (event.key === 'F1') { event.preventDefault(); openModal('hint', '操作提示') }
   if (event.code === 'Space' && state.flowRunning && !state.modal) { event.preventDefault(); state.paused = !state.paused }
 }
-onMounted(() => { stopClock = startClock(); document.addEventListener('keydown', keyboard); if (new URLSearchParams(location.search).get('demo') === '1') login('teacher') })
+async function authenticateIlab() {
+  if (!await ilab.initialise()) return false
+  const teaching = useWorkspace()
+  const oldOperation = teaching.data.activeOperation
+  if (teaching.data.activeTheory || (oldOperation && !ilab.ownsOperation(oldOperation.id)) || (teaching.data.pendingLaunch && !oldOperation)) {
+    teaching.cancelAssessment()
+    notify('已结束原本地会话；请以实验空间身份重新开始操作实验。', 'info')
+  }
+  login('student', ilab.platformLabel())
+  record(`实验空间身份认证成功：${ilab.state.session?.username}（${ilab.state.session?.mode === 'test' ? '测试环境' : '正式环境'}）`)
+  return true
+}
+watch(() => state.loggedIn, (loggedIn, previous) => {
+  if (!loggedIn && previous && ilab.state.session) {
+    const teaching = useWorkspace()
+    if (teaching.data.activeOperation && ilab.ownsOperation(teaching.data.activeOperation.id)) teaching.cancelAssessment()
+    void ilab.logout().catch(() => notify('本地已退出，但服务端注销失败；请关闭浏览器并稍后重试。', 'warning'))
+  }
+}, { flush: 'sync' })
+onMounted(async () => {
+  stopClock = startClock(); document.addEventListener('keydown', keyboard)
+  const parameters = new URLSearchParams(location.search)
+  const hadTicket = parameters.has('ticket')
+  const authenticated = await authenticateIlab()
+  if (!authenticated && !hadTicket && parameters.get('demo') === '1') login('teacher')
+})
 onBeforeUnmount(() => { stopClock?.(); document.removeEventListener('keydown', keyboard) })
 </script>
 
 <template>
-  <LoginView v-if="!state.loggedIn" />
+  <div v-if="!state.loggedIn && ['authenticating', 'error'].includes(ilab.state.phase)" class="ilab-login-screen"><IlabConnection @authenticate="authenticateIlab" /><p>请从实验空间课程页点击“我要做实验”进入；认证成功后自动进入学员工作台。</p></div>
+  <LoginView v-else-if="!state.loggedIn" />
   <div v-else class="simulator-shell">
     <SimulationRuntime />
+    <IlabConnection @authenticate="authenticateIlab" />
     <HeaderToolbar /><PageNavigation />
     <main class="main-view" :class="{ 'workspace-view': !isScene }">
       <WpfScene v-if="isScene" :scene-id="state.page" :devices="state.devices" :flow-id="manualActive ? '__manual__' : state.flowId" :manual-flow-id="state.manualFlowId" :running="state.flowRunning && !state.paused" :highlight-id="state.autoDemo || state.workspaces.activeAssessment?.mode === 'exam' ? '' : state.highlightId" @navigate="navigate" @operate="operate" @action="action" />
@@ -167,4 +198,5 @@ onBeforeUnmount(() => { stopClock?.(); document.removeEventListener('keydown', k
 <style scoped>.simulator-shell{height:100dvh;min-height:480px;display:flex;flex-direction:column;overflow:hidden}.main-view{flex:1;min-height:0;position:relative;overflow:hidden;background:var(--canvas)}.main-view.workspace-view{background:#edf3f9;overflow:auto}.confirmation{padding:10px 3px;color:#526c84;display:flex;flex-direction:column;align-items:center;gap:15px}.confirmation>svg{color:#2c7cbc}.confirmation p{font-size:14px;text-align:center;margin:0;line-height:1.8}.confirmation>div{display:flex;justify-content:center;gap:12px;width:100%;padding-top:9px}.confirmation .btn{min-width:110px}.toast-stack{position:fixed;right:22px;top:68px;z-index:3000;display:flex;flex-direction:column;gap:9px;max-width:min(440px,calc(100vw - 32px));pointer-events:none}.toast{background:#fff;border:1px solid #c5d8e9;border-left:4px solid #4b91c7;border-radius:7px;box-shadow:0 6px 24px #1c3f6633;color:#476178;display:flex;align-items:center;gap:10px;padding:12px 12px;font-size:12px;line-height:1.5;pointer-events:auto}.toast>svg{color:#4082b7}.toast>span{flex:1}.toast button{border:0;background:transparent;color:#93a6b6;padding:3px;display:grid;place-items:center}.toast-success{border-left-color:#299572}.toast-success>svg{color:#299572}.toast-warning{border-left-color:#dda535}.toast-warning>svg{color:#c78d26}.toast-error{border-left-color:#d34d5b}.toast-error>svg{color:#c84453}.toast-enter-active,.toast-leave-active{transition:.18s ease}.toast-enter-from,.toast-leave-to{opacity:0;transform:translateX(20px)}.toast-move{transition:transform .18s ease}
 .manual-status{position:absolute;right:16px;bottom:14px;z-index:30;display:flex;align-items:center;gap:10px;padding:8px 10px;background:#fff;border:1px solid #a9bdca;border-radius:6px;color:#294660;box-shadow:0 3px 12px #17437326}.manual-status span{font-size:12px;color:#417b60}
 @media(max-width:700px){.toast-stack{top:60px;right:12px}}
+.ilab-login-screen{min-height:100dvh;background:#edf3f9;display:flex;flex-direction:column;justify-content:center;padding:24px}.ilab-login-screen p{text-align:center;color:#526f85;line-height:1.8;font-size:14px}
 </style>

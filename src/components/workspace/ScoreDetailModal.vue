@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { ReturnPage, WorkspaceScore } from '../../data/workspace'
 import { useWorkspace } from '../../state/workspace'
 import { useSimulator } from '../../state/simulator'
+import { useIlab } from '../../state/ilab'
 import { formatDate, formatDuration, round } from './lib/domain'
 import BaseModal from '../common/BaseModal.vue'
 import UiIcon from '../common/UiIcon.vue'
@@ -13,12 +14,23 @@ const visible = computed(() => props.teacher || props.record.scoreVisible)
 const details = computed(() => props.record.details.filter(detail => tab.value === 'wrong' ? !detail.passed : tab.value === 'passed' ? detail.passed : true))
 const percentage = computed(() => round(props.record.score / props.record.maxScore * 100))
 const wrongQuestions = computed(() => props.record.details.filter(detail => detail.kind === 'question' && !detail.passed && detail.question).flatMap(detail => detail.question ? [detail.question] : []))
+const ilab = useIlab()
+const upload = computed(() => ilab.jobForScore(props.record.id))
+const reportFile = ref<HTMLInputElement | null>(null)
+async function selectReport(event: Event) {
+  const input = event.target as HTMLInputElement, file = input.files?.[0]
+  input.value = ''
+  if (!file || !upload.value) return
+  try { await ilab.uploadReport(upload.value, file) } catch (error) { simulator.notify(error instanceof Error ? error.message : '报告上传失败。', 'warning') }
+}
 function toggle(id: string) { expanded.value = expanded.value.includes(id) ? expanded.value.filter(value => value !== id) : [...expanded.value, id] }
 function retryWrong() { if (workspace.startTheory({ questions: wrongQuestions.value, title: `错题复习 · ${props.record.title}`, mode: 'practice', returnPage: props.returnPage, maxScore: 100 })) emit('close') }
 </script>
 <template>
   <BaseModal :title="record.kind === 'theory' ? '理论题成绩详情' : '成绩详情 · 操作考核'" :width="1120" @close="emit('close')">
     <div class="ws-modal-content">
+      <div v-if="upload" class="ws-note" :class="{ warning: upload.status !== 'uploaded' }" role="status" data-testid="ilab-score-status"><strong>实验空间 · {{ upload.mode === 'test' ? '测试环境' : '正式环境' }}</strong><p>{{ upload.message }}</p><small>本项目记录 ID：{{ upload.originId }}。平台确认回传与本地评分是两个独立状态。</small></div>
+      <div v-if="upload?.report" class="ws-note" role="status" data-testid="ilab-report-status">{{ upload.report.message }}</div>
       <div v-if="!visible" class="empty-state"><UiIcon name="LockKeyhole" :size="48" class="ws-empty-icon" /><h3>已提交本地考核</h3><p>教师设置了“成绩暂不可见”。详细分数及答案仅能在本地教师工作台查看。</p><p class="ws-subtext">提交时间：{{ formatDate(record.submittedAt) }}</p></div>
       <template v-else>
         <div class="ws-title-line"><div><h2>{{ record.title }}</h2><p class="ws-subtext" style="margin:8px 0 0">{{ record.studentName }} · {{ record.studentNo }} · {{ record.category }} · 本地自动评分</p></div><span class="badge" :class="record.passed ? 'badge-success' : 'badge-danger'">{{ record.passed ? '通过' : '未通过' }}</span></div>
@@ -30,6 +42,15 @@ function retryWrong() { if (workspace.startTheory({ questions: wrongQuestions.va
         <div class="ws-subtext" style="margin-top:16px">折算得分比例 {{ percentage }}%。每题 / 每步按权重计算，分值展示保留一位小数；总分从未舍入的得分点求和后统一舍入。</div>
       </template>
     </div>
-    <template #footer><button v-if="visible" class="btn" @click="simulator.downloadJson('成绩详情-' + workspace.safeName(record.title) + '.json', record)">导出详情 JSON</button><button v-if="visible" class="btn" @click="workspace.exportScores([record], '成绩详情.csv')">导出成绩 CSV</button><button v-if="visible && !teacher && wrongQuestions.length" class="btn btn-primary" @click="retryWrong">重练错题</button><button class="btn" @click="emit('close')">关闭</button></template>
+    <template #footer>
+      <input ref="reportFile" type="file" hidden accept=".pdf,.doc,.docx,.txt" @change="selectReport" />
+      <button v-if="visible && upload?.status === 'uploaded'" class="btn" :disabled="upload.report?.status === 'uploading' || upload.report?.status === 'uploaded' || upload.report?.status === 'uncertain'" @click="reportFile?.click()">上传实验报告</button>
+      <button v-if="visible && upload?.result" class="btn" @click="simulator.downloadJson('实验空间-' + upload.originId + '.json', upload.result)">导出回传 JSON</button>
+      <button v-if="upload && ['failed', 'uncertain'].includes(upload.status)" class="btn" @click="ilab.retry(upload)">查询确认 / 重试回传</button>
+      <button v-if="visible" class="btn" @click="simulator.downloadJson('成绩详情-' + workspace.safeName(record.title) + '.json', record)">导出详情 JSON</button>
+      <button v-if="visible" class="btn" @click="workspace.exportScores([record], '成绩详情.csv')">导出成绩 CSV</button>
+      <button v-if="visible && !teacher && wrongQuestions.length" class="btn btn-primary" @click="retryWrong">重练错题</button>
+      <button class="btn" @click="emit('close')">关闭</button>
+    </template>
   </BaseModal>
 </template>

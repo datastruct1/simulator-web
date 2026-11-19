@@ -32,10 +32,10 @@ function enterStudent() {
           <button type="button" class="sample-login" @click="login('student', '演示学员')">无需填写信息，体验演示学员</button>
         </form>
         <div v-else class="teacher-actions"><div class="teacher-note"><UiIcon name="Monitor" :size="28" /><div><strong>教师工作站</strong><p>直接进入，查看工艺系统与教学管理界面</p></div></div><button class="btn btn-primary enter-button" data-testid="enter-teacher" @click="login('teacher')">进入教师界面<UiIcon name="ArrowRight" :size="18" /></button><button class="btn offline-button" @click="login('offline')"><UiIcon name="Play" :size="17" />离线仿真演示</button></div>
-        <div class="local-note"><UiIcon name="Info" :size="15" /><span>仅使用浏览器本地数据，不连接后端，不需要加密狗。</span></div>
+        <div class="local-note"><UiIcon name="Info" :size="15" /><span>此处为本地演示登录，不回传实验数据。实验空间用户请从课程页点击“我要做实验”进入。</span></div>
       </section>
     </main>
-    <footer class="login-footer"><span>甲醇燃料系统 · 仿真教学与安全训练</span><span>LOCAL SIMULATION · NO BACKEND</span></footer>
+    <footer class="login-footer"><span>甲醇燃料系统 · 仿真教学与安全训练</span><span>LOCAL DEMO · ILAB TICKET ACCESS</span></footer>
   </div>
 </template>
 

@@ -6,3 +6,9 @@ test-results/
 playwright-report/
 .DS_Store
 *.local
+
+.env
+.env.*
+!.env.ilab.example
+.ilab-data/
+src/dev-pic/

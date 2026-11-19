@@ -2,7 +2,7 @@
 
 基于 **Vue 3 + Vite + TypeScript** 的甲醇燃料模拟器 Web 界面复原项目。
 
-以同仓库的 WPF 项目为参考：保留工艺图布局、设备编号、原图标、中文导航和流程规则，并将窗口、控件与业务页面拆成 Vue 组件。当前所有交互在浏览器内运行，**不连接后端、PLC、加密狗或 WPF 物理仿真引擎**。
+以同仓库的 WPF 项目为参考：保留工艺图布局、设备编号、原图标、中文导航和流程规则，并将窗口、控件与业务页面拆成 Vue 组件。默认在浏览器内运行；可选 Node.js/TypeScript 服务端用于实验空间身份认证、实验结果及报告回传，**不连接 PLC、加密狗或 WPF 物理仿真引擎**。
 
 ## 启动
 
@@ -28,6 +28,28 @@ npm run test:e2e    # 浏览器交互测试
 ```
 
 浏览器测试在 Windows 上优先使用本机 Chrome / Edge；其他环境可先运行 `npx playwright install chromium`。也可通过 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定可执行文件。
+
+## 实验空间对接（2022 + 2026 AI 数据）
+
+需要 Node.js **22.19+**。配置和部署详见 [ilab-integration.md](docs/ilab-integration.md)。
+
+```powershell
+Copy-Item .env.ilab.example .env.ilab.local
+# 编辑 .env.ilab.local，填写实际申报项目名称；默认使用官方公测配置。
+npm run ilab:server    # 终端一：启动服务端，默认 8787
+npm run dev            # 终端二：启动前端，5173
+```
+
+必须从实验空间课程页带 `ticket` 进入，认证后操作交卷才参与回传。教师/离线演示、理论题和旧本地成绩不会自动回传。成绩详情可查看上传状态、导出回传 JSON、查询确认和上传真实实验报告。
+
+```powershell
+npm run test:ilab
+npm run typecheck:ilab
+npm exec playwright -- test tests/e2e/ilab.spec.ts
+```
+
+所有自动化测试均使用模拟请求；不等于已经完成正式平台联调。正式接入需要独立 HTTPS 部署及平台验收，GitHub Pages 只能承载静态演示。
+
 
 ## 界面与操作
 
@@ -146,7 +168,7 @@ npm run import:wpf
 
 - 这是交互式界面与流程复原，不是 WPF 控件运行时移植；部分控件采用 SVG/CSS 重绘，浏览器排版与桌面原控件不会逐像素相同。
 - 数值变化是用于展示的前端趋势，不调用真实热力学、管网或介质求解器；不能用于设备操作、工程计算或正式认证考核。
-- 服务器、PLC、图传、发布任务等不会产生真实网络业务。界面明确标示本地模式。
+- PLC、图传和远程发布任务等仍未接入；仅明确配置并通过实验空间认证的操作实验启用真实网络回传，本地演示不回传。
 - 原题库/脚本中的文案、答案、单位和缺省参数可能存在历史问题，教学使用前应校核；来源路径保存在生成数据中。
 - 本地记录保存在当前浏览器；浏览器清理数据后会丢失，请使用导出功能备份。
 - 当前资源路径以站点根目录部署为前提；静态部署时需使用 HTTP 服务，不能直接双击 `dist/index.html`。
