@@ -12,6 +12,7 @@ import ManualSafetyPanel from './components/safety/ManualSafetyPanel.vue'
 import { pageAliases, pages, workflows } from './data/catalog'
 import { useSimulator } from './state/simulator'
 import { useIlab } from './state/ilab'
+import { useInternalTest } from './state/internalTest'
 import { useWorkspace } from './state/workspace'
 import IlabConnection from './components/layout/IlabConnection.vue'
 import type { SceneNode } from './types/scene'
@@ -27,6 +28,7 @@ const ToolDialogs = defineAsyncComponent(() => import('./components/dialogs/Tool
 const DeviceDialog = defineAsyncComponent(() => import('./components/dialogs/DeviceDialog.vue'))
 const { state, navigate, openModal, closeModal, ensureDevice, setDevice, record, notify, startFlow, stopFlow, startClock, login, clearFault, isFreeManual, manualActivity } = useSimulator()
 const ilab = useIlab()
+const internalTest = useInternalTest()
 const manualActive = computed(isFreeManual)
 const isScene = computed(() => pages.some(page => page.id === state.page))
 const workspace = computed(() => ({ teacher: TeacherWorkspace, student: StudentWorkspace, exam: ExamWorkspace, editor: SceneEditor } as Record<string, Component>)[state.page])
@@ -161,6 +163,11 @@ watch(() => state.loggedIn, (loggedIn, previous) => {
 }, { flush: 'sync' })
 onMounted(async () => {
   stopClock = startClock(); document.addEventListener('keydown', keyboard)
+  if (await internalTest.initialise()) {
+    const url = new URL(location.href); url.searchParams.delete('ticket'); url.searchParams.delete('token'); history.replaceState(history.state, '', url)
+    login('student', '测试用户'); notify('内部测试模式：数据保存到本系统，不会上传实验空间。', 'info')
+    return
+  }
   const parameters = new URLSearchParams(location.search)
   const hadTicket = parameters.has('ticket')
   const authenticated = await authenticateIlab()
@@ -175,6 +182,7 @@ onBeforeUnmount(() => { stopClock?.(); document.removeEventListener('keydown', k
   <div v-else class="simulator-shell">
     <SimulationRuntime />
     <IlabConnection @authenticate="authenticateIlab" />
+    <div v-if="internalTest.state.enabled" role="status" style="background:#fff3cd;color:#633f00;text-align:center;padding:5px">内部测试模式 · 测试用户 · 会话 {{ internalTest.state.sessionId }} · 不上传实验空间</div>
     <HeaderToolbar /><PageNavigation />
     <main class="main-view" :class="{ 'workspace-view': !isScene }">
       <WpfScene v-if="isScene" :scene-id="state.page" :devices="state.devices" :flow-id="manualActive ? '__manual__' : state.flowId" :manual-flow-id="state.manualFlowId" :running="state.flowRunning && !state.paused" :highlight-id="state.autoDemo || state.workspaces.activeAssessment?.mode === 'exam' ? '' : state.highlightId" @navigate="navigate" @operate="operate" @action="action" />

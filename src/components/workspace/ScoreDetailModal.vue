@@ -4,6 +4,7 @@ import type { ReturnPage, WorkspaceScore } from '../../data/workspace'
 import { useWorkspace } from '../../state/workspace'
 import { useSimulator } from '../../state/simulator'
 import { useIlab } from '../../state/ilab'
+import { useInternalTest } from '../../state/internalTest'
 import { formatDate, formatDuration, round } from './lib/domain'
 import BaseModal from '../common/BaseModal.vue'
 import UiIcon from '../common/UiIcon.vue'
@@ -15,6 +16,8 @@ const details = computed(() => props.record.details.filter(detail => tab.value =
 const percentage = computed(() => round(props.record.score / props.record.maxScore * 100))
 const wrongQuestions = computed(() => props.record.details.filter(detail => detail.kind === 'question' && !detail.passed && detail.question).flatMap(detail => detail.question ? [detail.question] : []))
 const ilab = useIlab()
+const internalTest = useInternalTest()
+const internalSave = computed(() => internalTest.state.records[props.record.id])
 const upload = computed(() => ilab.jobForScore(props.record.id))
 const reportFile = ref<HTMLInputElement | null>(null)
 async function selectReport(event: Event) {
@@ -29,6 +32,7 @@ function retryWrong() { if (workspace.startTheory({ questions: wrongQuestions.va
 <template>
   <BaseModal :title="record.kind === 'theory' ? '理论题成绩详情' : '成绩详情 · 操作考核'" :width="1120" @close="emit('close')">
     <div class="ws-modal-content">
+      <div v-if="internalTest.state.enabled" class="ws-note" data-testid="internal-test-status"><strong>内部测试后台</strong><p>{{ internalSave?.message || '此成绩没有本次会话的后台保存记录，可手动重试。' }}</p><small>测试会话：{{ internalTest.state.sessionId }}<template v-if="internalSave?.id">；后台记录：{{ internalSave.id }}</template></small><button v-if="!internalSave || internalSave.status === 'failed'" class="btn btn-sm" @click="internalTest.save(record)">保存 / 重试</button></div>
       <div v-if="upload" class="ws-note" :class="{ warning: upload.status !== 'uploaded' }" role="status" data-testid="ilab-score-status"><strong>实验空间 · {{ upload.mode === 'test' ? '测试环境' : '正式环境' }}</strong><p>{{ upload.message }}</p><small>本项目记录 ID：{{ upload.originId }}。平台确认回传与本地评分是两个独立状态。</small></div>
       <div v-if="upload" class="ws-note" data-testid="ilab-platform-response"><strong>实验空间返回值（仅展示安全字段）</strong><pre v-if="upload.platformResponse" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ JSON.stringify(upload.platformResponse, null, 2) }}</pre><p v-else>尚无平台上传接口返回值；本地校验、网络错误或查询确认不会生成上传返回值。</p></div>
       <div v-if="upload?.report" class="ws-note" role="status" data-testid="ilab-report-status">{{ upload.report.message }}</div>

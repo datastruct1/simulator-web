@@ -9,6 +9,7 @@ import { createFlowAssessment, feedFlowAssessment } from '../components/workspac
 import { getFile, removeStoredFile, storeFile } from '../components/workspace/lib/files'
 import { decodeWorkspace, readWorkspace, writeWorkspace } from '../components/workspace/lib/storage'
 import { useIlab } from './ilab'
+import { useInternalTest } from './internalTest'
 
 const simulator = useSimulator()
 const ilab = useIlab()
@@ -279,6 +280,7 @@ function toggleFavourite(questionId: string, studentId = currentStudent.value?.i
 }
 function finishScore(score: WorkspaceScore, returnPage: ReturnPage) {
   data.scores.unshift(score); data.lastScoreId = score.id
+  if (useInternalTest().state.enabled) void useInternalTest().save(score)
   if (score.taskId && score.mode === 'exam') { const key = taskKey(score.taskId, score.studentId); if (!data.submittedTaskKeys.includes(key)) data.submittedTaskKeys.push(key) }
   if (returnPage === 'student') data.studentTab = 'history'; else data.examTab = 'result'
   persist(); simulator.record(`本地${score.category}交卷：${score.title}，${score.scoreVisible ? `实际得分 ${score.score}/${score.maxScore}` : '已提交，成绩暂不可见'}`)

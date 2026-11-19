@@ -9,6 +9,7 @@ export default defineConfig({
         port: 5173,
         proxy: {
             '/api/ilab': { target: 'http://127.0.0.1:8787', changeOrigin: false },
+            '/api/internal-test': { target: 'http://127.0.0.1:8787', changeOrigin: false },
         },
         fs: { deny: ['.env*', '*.{crt,pem}', '**/.git/**', '**/src/dev-pic/**', '**/.ilab-data/**'] },
     },

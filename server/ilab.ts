@@ -3,11 +3,13 @@ import { createHash, randomBytes } from 'node:crypto'
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { validateExperimentResult, type IlabExperimentResult } from '../src/integrations/result.ts'
+import { handleInternalTest, type InternalTestConfig } from './internal-test.ts'
 
 export interface IlabConfig {
   mode?: 'test' | 'production'; appid?: string; secret?: string; projectTitle?: string
   requiresAiData?: boolean; allowedOrigins?: string[]; cookieSecure?: boolean
   sessionTtlMs?: number; maxSessions?: number; timeoutMs?: number
+  internalTest?: InternalTestConfig
 }
 type Session = { username: string; displayName: string; csrfToken: string; expiresAt: number; sessionId: string; token: string; originalToken: string; tokenExpires: number; refreshes: number; refreshing?: Promise<string> }
 type RecordEntry = { result: IlabExperimentResult; status: 'uploaded' | 'failed' | 'uncertain'; id?: string | number; confirmed?: boolean; platformResponse?: { code: number; id?: string | number }; attachment?: { hash: string; status: 'uploaded' | 'failed' | 'uncertain'; id?: string } }
@@ -99,6 +101,7 @@ export function createIlabServer(config: IlabConfig, options: { fetch?: typeof f
     res.setHeader('X-Content-Type-Options', 'nosniff')
     const send = (status: number, value: unknown) => { res.statusCode = status; res.end(JSON.stringify(value)) }
     try {
+      if (config.internalTest && await handleInternalTest(req, res, config.internalTest)) return
       const url = new URL(req.url ?? '/', 'http://localhost')
       const path = url.pathname
       if (req.method === 'GET' && path === '/api/ilab/config') return send(200, { enabled, mode, appid: config.appid ?? '', projectTitle: config.projectTitle ?? '', requiresAiData: config.requiresAiData ?? true })

@@ -3,14 +3,19 @@ import { createIlabServer } from './ilab.ts'
 const env = process.env
 const mode = env.ILAB_MODE ?? 'test'
 if (mode !== 'test' && mode !== 'production') throw new Error('ILAB_MODE must be test or production')
+const internalTest = env.INTERNAL_TEST_MODE === 'true'
+if (internalTest && mode !== 'test') throw new Error('内部测试模式只能在 ILAB_MODE=test 时启用。')
+if (internalTest && (!env.INTERNAL_TEST_ADMIN_KEY || env.INTERNAL_TEST_ADMIN_KEY.length < 16)) throw new Error('启用内部测试需设置至少16字符的 INTERNAL_TEST_ADMIN_KEY。')
+const allowedOrigins = (env.ILAB_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173').split(',').map(v => v.trim()).filter(Boolean)
 // The documented shared test credentials are public. Never send a project's private production key to the HTTP test host.
 if (mode === 'test' && env.ILAB_APPID && env.ILAB_APPID !== '10000') throw new Error('测试环境只能使用官方公测 APPID 10000；正式项目请选择 production。')
 if (mode === 'test' && env.ILAB_SECRET && env.ILAB_SECRET !== 'DDO7jw9TAZlLwRLRKSpBWXIlYZe9PKaD5Wc1S5ZQ0U8=') throw new Error('测试环境只能使用官方公测密钥，禁止使用正式项目密钥。')
 if (env.ILAB_PROJECT_TITLE && (!env.ILAB_PROJECT_TITLE.trim() || env.ILAB_PROJECT_TITLE.length > 100)) throw new Error('ILAB_PROJECT_TITLE 必须是 1～100 字符的实际申报项目名称。')
 const server = createIlabServer({
-  mode, appid: env.ILAB_APPID, secret: env.ILAB_SECRET, projectTitle: env.ILAB_PROJECT_TITLE,
+  mode, appid: internalTest ? undefined : env.ILAB_APPID, secret: internalTest ? undefined : env.ILAB_SECRET, projectTitle: env.ILAB_PROJECT_TITLE,
   requiresAiData: env.ILAB_REQUIRES_AI_DATA !== 'false',
-  allowedOrigins: (env.ILAB_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173').split(',').map(v => v.trim()).filter(Boolean),
+  allowedOrigins,
+  internalTest: { enabled: internalTest, adminKey: env.INTERNAL_TEST_ADMIN_KEY, allowedOrigins, dataDir: env.INTERNAL_TEST_DATA_DIR ?? '.ilab-data/internal-test' },
   cookieSecure: mode === 'production' || env.ILAB_COOKIE_SECURE === 'true',
 }, { dataDir: env.ILAB_DATA_DIR })
 server.requestTimeout = 15000
