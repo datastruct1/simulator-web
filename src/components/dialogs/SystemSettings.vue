@@ -111,7 +111,7 @@ function packageExport() {
         <h3>流程参数</h3>
         <div class="form-grid">
           <label class="field-group"><span class="field-label">加注流量设定（bunkerFlow，m³/h）</span><input v-model.number="draft.bunkerFlow" class="field" type="number" min="0" max="100000" step="10"></label>
-          <div class="field-group"><span class="field-label">参数说明</span><p class="hint">加注仿真按该流量给出前端液位与储罐液位趋势，仅用于本地训练演示，不调用原物理求解器。</p></div>
+          <div class="field-group"><span class="field-label">参数说明</span><p class="hint">用于计算仿真中的液位变化趋势，不代表实际作业数据。</p></div>
         </div>
       </section>
       <section class="card">
@@ -134,7 +134,7 @@ function packageExport() {
         <div class="form-grid">
           <label class="field-group full"><span class="field-label">serverAddress</span><input v-model="draft.serverAddress" class="field" type="text" maxlength="200" placeholder="http://127.0.0.1:25565"></label>
         </div>
-        <p class="hint warning"><UiIcon name="TriangleAlert" :size="14" />Web 版本为纯前端离线演示，不建立 WebSocket / HTTP 连接，也不会伪装在线状态。该地址仅作为本地记录与 JSON 导出字段。</p>
+        <p class="hint warning"><UiIcon name="TriangleAlert" :size="14" />该地址仅保存于本地设置，不用于建立连接。</p>
       </section>
     </div>
 
@@ -178,11 +178,11 @@ function packageExport() {
     <div v-else class="setting-layout">
       <section class="card about-card">
         <h3>Simulator.Web · 甲醇燃料加注仿真训练平台</h3>
-        <p>本项目是原 WPF 仿真系统的 Web 复刻，保留 10 张工艺图、原设备位号、20 组工况与 21 套 Playbook 操作流程；所有数据与交互均在浏览器本地运行。</p>
+        <p>甲醇燃料加注仿真训练平台提供工艺操作、理论练习与考评功能。</p>
         <ul>
           <li>设置存储：浏览器 <code>localStorage</code>（<code>simulator_web.settings.v1</code>）</li>
           <li>工况存储：<code>simulator_web.snapshots.v1</code>，仅支持本 Web 版本 schemaVersion 1 JSON</li>
-          <li>服务器：未配置、未连接；不包含后台登录、评分上传或远程监控。</li>
+          <li>本地工作台数据保存在当前浏览器；平台接入状态请查看连接信息。</li>
           <li>安全门禁：加注相关流程仍需先完成 247 项安全检查与双方签收。</li>
         </ul>
         <div class="about-actions"><button class="btn" type="button" @click="exportDraft"><UiIcon name="FileJson" :size="14" />导出现有设置</button><button class="btn" type="button" @click="packageExport"><UiIcon name="Download" :size="14" />导出完整本地数据</button></div>

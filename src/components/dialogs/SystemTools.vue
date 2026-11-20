@@ -316,7 +316,7 @@ const recentLogs = computed(() => state.logs.slice(0, 6))
     <!-- 实时趋势 -->
     <template v-else-if="mode === 'statistics'">
       <section class="card">
-        <div class="stats-heading"><div><h3>实时趋势</h3><p>曲线来自设备状态的真实采样（浏览器内历史记录），不是随机演示数据。</p></div><span class="badge">{{ statsCharts.length }} / 4 条曲线</span></div>
+        <div class="stats-heading"><div><h3>实时趋势</h3><p>查看本次运行期间的设备状态变化。</p></div><span class="badge">{{ statsCharts.length }} / 4 条曲线</span></div>
         <div class="toolbar">
           <select v-model="statsGroup" class="field" aria-label="传感器类型"><option v-for="group in statsGroups" :key="group">{{ group }}</option></select>
           <select v-model="statsRoom" class="field" aria-label="所在处所"><option v-for="room in statsRooms" :key="room">{{ room }}</option></select>
