@@ -71,7 +71,7 @@ function exportWorkload() {
       <button v-if="model" class="btn btn-sm btn-danger" type="button" :disabled="disabled || busy" data-testid="scene-workload-clear" @click="propose(undefined, '')">清除工况</button>
     </div>
     <input ref="input" class="scene-file-input" type="file" accept=".json,application/json" :disabled="disabled || busy" :aria-label="title + ' JSON 文件'" data-testid="scene-workload-file" @change="importFile" />
-    <small class="scene-workload-help">仅支持本 Web 导出的 schemaVersion: 1 工况 JSON；不支持 WPF 工况或引用图格式。快照保留设备开关、数值及本地传感器 / 设备参数，不含 WPF 物理仿真状态。</small>
+    <small class="scene-workload-help">请选择本系统导出的工况文件。</small>
     <div v-if="error" class="ws-form-error scene-workload-error" role="alert">{{ error }}</div>
   </section>
   <ConfirmDialog v-if="pending" :title="pending.workload ? '替换草稿工况' : '清除草稿工况'" :message="pending.workload ? `将用“${pending.name}”替换当前嵌入的工况“${name}”？不会加载到当前工艺设备。` : initial ? '确定清除此草稿中的工况？当前工艺设备不会重置；测试时将使用关联流程的初始工况。' : '确定移除此加载动作的工况？动作会保留，重新导入有效工况后才能通过校验。'" :danger="!pending.workload" :confirm-text="pending.workload ? '替换工况' : '清除工况'" @confirm="confirmChange" @close="pending = null" />

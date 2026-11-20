@@ -55,10 +55,10 @@ function startHintFlow(flowId: string) { startFlow(flowId) }
 
 /* -------------------------------- 系统介绍 ------------------------------- */
 const illustrations = [
-  { src: '/simulator-web/assets/illustrations/加注.jpg', title: '甲醇加注作业', text: '加注前端撬块与加注撬块的原 WPF 工艺图示，对应加注、加注扫气与岸载惰化流程。' },
+  { src: '/simulator-web/assets/illustrations/加注.jpg', title: '甲醇加注作业', text: '加注前端撬块与加注撬块的工艺图，对应加注、加注扫气与岸载惰化流程。' },
   { src: '/simulator-web/assets/illustrations/供应.jpg', title: '甲醇供应系统', text: '燃料准备间、机舱主机 / 辅机供应与负载均衡流程的原工艺图示。' },
-  { src: '/simulator-web/assets/illustrations/漂亮的加注.png', title: '加注撬块与管路', text: '原项目加注撬块示意图，包含软管、阀门、流量计与氮气吹扫接口。' },
-  { src: '/simulator-web/assets/illustrations/甲醇泄露.png', title: '甲醇泄漏应急', text: '甲醇泄漏场景示意，对应“甲醇泄露”Playbook 的检测、隔离、回收与复位步骤。' },
+  { src: '/simulator-web/assets/illustrations/漂亮的加注.png', title: '加注撬块与管路', text: '加注撬块示意图，包含软管、阀门、流量计与氮气吹扫接口。' },
+  { src: '/simulator-web/assets/illustrations/甲醇泄露.png', title: '甲醇泄漏应急', text: '甲醇泄漏场景示意，对应甲醇泄漏流程 的检测、隔离、回收与复位步骤。' },
 ]
 const introModules = [
   { title: '氮气供应与惰化', text: '氮气瓶组、氧含量与风压监测、船载 / 岸载惰化流程。' },
@@ -244,7 +244,7 @@ const recentLogs = computed(() => state.logs.slice(0, 6))
     <!-- 速度控制 -->
     <template v-if="mode === 'speed'">
       <section class="card speed-card">
-        <div class="speed-heading"><div><h3>仿真速度</h3><p>Web 版本使用前端定时器推进本地状态，速度只影响本地仿真，不连接求解服务器。</p></div><strong class="speed-value">{{ state.paused ? '暂停' : `${Number(state.speed).toFixed(1)}x` }}</strong></div>
+        <div class="speed-heading"><div><h3>仿真速度</h3><p>调整仿真运行速度，不影响考评计时。</p></div><strong class="speed-value">{{ state.paused ? '暂停' : `${Number(state.speed).toFixed(1)}x` }}</strong></div>
         <input class="speed-slider" type="range" min="0" max="100" step="0.1" :value="Number(state.speed)" aria-label="仿真速度 0 到 100 倍" @input="applySpeed(Number(($event.target as HTMLInputElement).value))">
         <div class="speed-scale"><span>0x 暂停</span><span>1x</span><span>100x</span></div>
         <div class="speed-buttons">
@@ -292,11 +292,11 @@ const recentLogs = computed(() => state.logs.slice(0, 6))
       <section class="card intro-hero">
         <div class="intro-text">
           <h3>甲醇燃料加注仿真训练系统</h3>
-          <p>原 WPF 仿真系统按工艺分区拆分为 10 张工艺图：氮气供应撬块、加注前端撬块、加注撬块、燃料舱隔离空舱、燃料准备间、甲醇发动机机舱、冷热水撬块、回收撬块与总控室。Web 版本保留原设备位号、管路介质色、20 组预置工况与 {{ workflows.length }} 套 Playbook 操作流程。</p>
+          <p>通过工艺图查看设备和管路状态，选择预置工况或操作流程开展训练。</p>
           <p>训练通过“工艺流程 + 设备操作 + 异常演练 + 安全门禁”完成：加注、惰化与回收流程需先在安全检查页完成全部检查项与双方确认；操作提示、设备监测与趋势记录均在浏览器本地运行。</p>
           <div class="intro-actions"><button class="btn btn-primary" type="button" @click="gotoPage('overview')">进入系统总览</button><button class="btn" type="button" @click="openModal('hint', '操作提示')">查看当前流程步骤</button></div>
         </div>
-        <figure class="intro-figure"><img src="/simulator-web/assets/illustrations/加注.jpg" alt="原 WPF 甲醇加注工艺图示"><figcaption>原 WPF 加注工艺图示</figcaption></figure>
+        <figure class="intro-figure"><img src="/simulator-web/assets/illustrations/加注.jpg" alt="甲醇加注工艺图"><figcaption>甲醇加注工艺图</figcaption></figure>
       </section>
       <section class="intro-modules">
         <article v-for="item in introModules" :key="item.title" class="card intro-module"><h4>{{ item.title }}</h4><p>{{ item.text }}</p></article>
@@ -341,7 +341,7 @@ const recentLogs = computed(() => state.logs.slice(0, 6))
     <!-- 仿真调试 -->
     <template v-else-if="mode === 'debug'">
       <div class="debug-head">
-        <div><h3>仿真调试</h3><p>调试操作直接修改本地 DeviceState，只用于演示与排障；不执行任意脚本，也不调用原物理求解器。</p></div>
+        <div><h3>仿真调试</h3><p>调试操作会直接修改设备状态，请谨慎操作。</p></div>
         <div class="debug-actions"><button class="btn btn-sm" type="button" @click="exportTopology"><UiIcon name="FileJson" :size="13" />导出设备拓扑</button><button class="btn btn-sm" type="button" @click="exportCondition"><UiIcon name="Download" :size="13" />导出工况</button><label class="btn btn-sm file-button"><UiIcon name="Upload" :size="13" />导入工况<input class="visually-hidden" type="file" accept="application/json,.json" @change="importCondition"></label><button class="btn btn-sm" type="button" @click="showRecords"><UiIcon name="ScrollText" :size="13" />查看记录</button></div>
       </div>
       <nav class="tabs debug-tabs"><button v-for="tab in debugTabs" :key="tab" :class="{ active: debugTab === tab }" type="button" @click="debugTab = tab">{{ tab }}</button></nav>
@@ -454,7 +454,7 @@ const recentLogs = computed(() => state.logs.slice(0, 6))
 
     <section v-else class="card">
       <h3>{{ state.modal?.title || '系统工具' }}</h3>
-      <p class="hint">该工具在 Web 版本中由设备弹窗、RecordTools 或 ConditionTools 提供。</p>
+      <p class="hint">请在设备详情、记录或工况管理中使用相应功能。</p>
       <button class="btn btn-primary" type="button" @click="closeModal">关闭窗口</button>
     </section>
   </div>

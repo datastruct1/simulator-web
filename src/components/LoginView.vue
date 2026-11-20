@@ -7,20 +7,20 @@ const { login, notify } = useSimulator()
 const studentId = ref(''), name = ref(''), studentMode = ref(false)
 function enterStudent() {
   if (!name.value.trim()) { notify('请输入学员姓名。', 'warning'); return }
-  if (!/^\d{17}[\dXx]$/.test(studentId.value.trim())) { notify('请输入 18 位身份证号（前端格式检查，不会发送到服务器）。', 'warning'); return }
+  if (!/^\d{17}[\dXx]$/.test(studentId.value.trim())) { notify('请输入 18 位身份证号。', 'warning'); return }
   login('student', name.value)
 }
 </script>
 
 <template>
   <div class="login-page">
-    <header class="login-masthead"><img src="/simulator-web/assets/branding/fengmian.png" alt="甲醇燃料模拟器标志" /><span>SIMULATOR<span class="masthead-divider">/</span><small>WEB EDITION</small></span><span class="preview-badge"><i class="status-dot" />前端界面复原版</span></header>
+    <header class="login-masthead"><img src="/simulator-web/assets/branding/fengmian.png" alt="甲醇燃料模拟器标志" /><span>SIMULATOR<span class="masthead-divider">/</span><small>WEB EDITION</small></span></header>
     <div class="ocean-lines" aria-hidden="true"><svg viewBox="0 0 1600 300" preserveAspectRatio="none"><path d="M0 170 Q200 30 400 170 T800 170 T1200 170 T1600 170" /><path d="M0 205 Q200 65 400 205 T800 205 T1200 205 T1600 205" /><path d="M0 240 Q200 100 400 240 T800 240 T1200 240 T1600 240" /></svg></div>
     <main class="login-window">
       <section class="login-brand">
         <div class="brand-grid" aria-hidden="true" />
         <div class="brand-content"><div class="brand-logo"><img src="/simulator-web/assets/branding/fengmian.png" alt="模拟器" /></div><h1>甲醇燃料<br />模拟器软件</h1><p>METHANOL FUEL SIMULATOR</p><div class="brand-rule" /><div class="brand-feature"><UiIcon name="Workflow" />全流程工艺仿真</div><div class="brand-feature"><UiIcon name="ShieldCheck" />作业安全与异常处置</div><div class="brand-feature"><UiIcon name="GraduationCap" />教学 · 练习 · 考核</div></div>
-        <span class="brand-version">WPF EXPERIENCE / V2.0</span>
+        <span class="brand-version">METHANOL FUEL SIMULATOR</span>
       </section>
       <section class="login-form">
         <div class="login-title"><span>SYSTEM ACCESS</span><h2>系统登录</h2><p>欢迎进入甲醇燃料仿真训练平台</p></div>
@@ -32,10 +32,10 @@ function enterStudent() {
           <button type="button" class="sample-login" @click="login('student', '演示学员')">无需填写信息，体验演示学员</button>
         </form>
         <div v-else class="teacher-actions"><div class="teacher-note"><UiIcon name="Monitor" :size="28" /><div><strong>教师工作站</strong><p>直接进入，查看工艺系统与教学管理界面</p></div></div><button class="btn btn-primary enter-button" data-testid="enter-teacher" @click="login('teacher')">进入教师界面<UiIcon name="ArrowRight" :size="18" /></button><button class="btn offline-button" @click="login('offline')"><UiIcon name="Play" :size="17" />离线仿真演示</button></div>
-        <div class="local-note"><UiIcon name="Info" :size="15" /><span>此处为本地演示登录，不回传实验数据。实验空间用户请从课程页点击“我要做实验”进入。</span></div>
+        <div class="local-note"><UiIcon name="Info" :size="15" /><span>本地模式不回传实验数据。实验空间用户请从课程页进入。</span></div>
       </section>
     </main>
-    <footer class="login-footer"><span>甲醇燃料系统 · 仿真教学与安全训练</span><span>LOCAL DEMO · ILAB TICKET ACCESS</span></footer>
+    <footer class="login-footer"><span>甲醇燃料系统 · 仿真教学与安全训练</span><span></span></footer>
   </div>
 </template>
 

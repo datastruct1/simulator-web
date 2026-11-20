@@ -107,7 +107,7 @@ function refreshTasks() { simulator.notify('已更新本浏览器已发布任务
 </script>
 
 <template>
-  <WorkspaceFrame title="学生主页" subtitle="任务领取、理论与操作学习、资料与成绩 · 原 WPF 学员工作台 / 浏览器本地模式" icon="GraduationCap" data-testid="student-workspace">
+  <WorkspaceFrame title="学生主页" subtitle="任务、练习与成绩" icon="GraduationCap" data-testid="student-workspace">
     <template #navigation>
       <div class="toolbar identity-bar"><span class="ws-subtext" data-testid="student-identity">{{ student?.name }} · {{ student?.studentNo }} · {{ student?.group }}</span><span class="badge badge-muted">本地身份 · 未连接教师服务器</span><span class="spacer" /><button type="button" class="btn btn-sm" :disabled="busy" data-testid="student-standalone" @click="openStandalone">单机练习 / 考评菜单</button><button type="button" class="btn btn-sm" @click="simulator.navigate('overview')"><UiIcon name="House" :size="14" />返回工艺主页</button></div>
       <nav class="tabs student-tabs" aria-label="学生工作台模块"><button v-for="item in tabs" :key="item.id" type="button" :class="{ active: workspace.data.studentTab === item.id }" :aria-current="workspace.data.studentTab === item.id ? 'page' : undefined" :data-testid="`student-tab-${item.id}`" @click="tab(item.id)"><UiIcon :name="item.icon" :size="15" /> {{ item.name }}</button></nav>

@@ -126,7 +126,7 @@ function packageExport() {
         <div class="toggle-list"><label class="checkbox-label"><input v-model="draft.localCoach" type="checkbox">启用本地教练提示（localCoach）<span class="key-note">不连接服务器</span></label></div>
         <div class="form-grid">
           <label class="field-group"><span class="field-label">图像质量（imageQuality）</span><select v-model="draft.imageQuality" class="field"><option>低</option><option>中</option><option>高</option></select></label>
-          <div class="field-group"><span class="field-label">当前说明</span><p class="hint">图像质量用于本地 WPF 图示与 3D 模型偏好记录；本版本不会下载或上传图像。</p></div>
+          <div class="field-group"><span class="field-label">当前说明</span><p class="hint">该选项仅保存显示偏好，当前不改变图像质量。</p></div>
         </div>
       </section>
       <section class="card server-card">
@@ -171,7 +171,7 @@ function packageExport() {
           <button class="btn" type="button" @click="packageExport"><UiIcon name="Download" :size="14" />打包导出本地数据</button>
         </div>
         <div v-if="confirming === 'clean'" class="confirm-strip"><span>确认清空浏览器内存中的 {{ state.logs.length }} 条日志、{{ state.alarms.length }} 条告警与提示？该操作不涉及服务器。</span><button class="btn btn-danger btn-sm" type="button" @click="recordLocalCleanup">确认清理</button><button class="btn btn-sm" type="button" @click="confirming = ''">取消</button></div>
-        <p class="hint">导出内容为当前设置、工况快照、日志、告警与设备状态 JSON，由浏览器直接下载，不连接后端。</p>
+        <p class="hint">导出当前设置、工况快照、日志、告警与设备状态。</p>
       </section>
     </div>
 
@@ -180,8 +180,7 @@ function packageExport() {
         <h3>Simulator.Web · 甲醇燃料加注仿真训练平台</h3>
         <p>甲醇燃料加注仿真训练平台提供工艺操作、理论练习与考评功能。</p>
         <ul>
-          <li>设置存储：浏览器 <code>localStorage</code>（<code>simulator_web.settings.v1</code>）</li>
-          <li>工况存储：<code>simulator_web.snapshots.v1</code>，仅支持本 Web 版本 schemaVersion 1 JSON</li>
+          <li>设置和工况保存在当前浏览器中，可导出备份。</li>
           <li>本地工作台数据保存在当前浏览器；平台接入状态请查看连接信息。</li>
           <li>安全门禁：加注相关流程仍需先完成 247 项安全检查与双方签收。</li>
         </ul>

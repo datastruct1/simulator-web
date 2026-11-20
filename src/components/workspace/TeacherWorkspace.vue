@@ -23,7 +23,7 @@ async function loadBackup(event: Event) { const target = event.target as HTMLInp
 function importBackup() { workspace.importWorkspace(importText.value); importText.value = '' }
 </script>
 <template>
-  <WorkspaceFrame title="教师主页" subtitle="教学任务、题库与试卷 · 原 WPF 教师业务工作台 / 浏览器本地模式" icon="GraduationCap">
+  <WorkspaceFrame title="教师主页" subtitle="教学任务、题库与试卷" icon="GraduationCap">
     <template #navigation><div class="toolbar" style="margin-bottom:8px"><span class="ws-subtext">{{ simulator.state.userName }} · 本地教师控制台</span><span class="spacer" /><button class="btn btn-sm" @click="workspace.exportWorkspace"><UiIcon name="Download" :size="14" />导出业务备份</button><button class="btn btn-sm" @click="input?.click()"><UiIcon name="Upload" :size="14" />导入业务备份</button><button class="btn btn-sm" @click="simulator.navigate('editor')">操作题编辑器</button><input ref="input" type="file" accept=".json" hidden @change="loadBackup" /></div><nav class="tabs" aria-label="教师工作台模块"><button v-for="tab in tabs" :key="tab.id" :class="{ active: workspace.data.teacherTab === tab.id }" @click="workspace.data.teacherTab = tab.id"><UiIcon :name="tab.icon" :size="15" /> {{ tab.name }}</button></nav></template>
     <ActiveAssessmentBanner />
     <TeacherMonitor v-if="workspace.data.teacherTab === 'home'" />

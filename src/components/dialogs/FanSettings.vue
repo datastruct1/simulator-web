@@ -111,7 +111,6 @@ function slotOf(room: FanRoomView, device: DeviceState) { return device.id === r
       <div class="green"><small>正在运行</small><strong>{{ counters.running }}</strong></div>
       <div class="orange"><small>故障 / 锁定</small><strong>{{ counters.faults }}</strong></div>
     </div>
-    <p class="source-note">通风系统配置来自原 WPF <code>fanRooms</code>：氮气间、燃料隔离空舱与燃料准备间的主 / 备风机。启停、模式与主备切换只修改本地设备状态，不连接后端或原服务器。</p>
 
     <section v-for="room in rooms" :key="room.config.name" class="card fan-room">
       <header class="room-heading">
@@ -152,7 +151,7 @@ function slotOf(room: FanRoomView, device: DeviceState) { return device.id === r
         </article>
       </div>
     </section>
-    <p class="foot-note"><UiIcon name="Info" :size="14" />“{{ autoSettingItems.find(item => item.key === rooms[0]?.autoKey)?.label || '自动切换' }}”等自动策略在保存系统设置后持久化到浏览器；健康备机会在注入当前机故障时按原 WPF 逻辑自动接替（可在“系统设置 / 流程”中关闭）。</p>
+    <p class="foot-note"><UiIcon name="Info" :size="14" />“{{ autoSettingItems.find(item => item.key === rooms[0]?.autoKey)?.label || '自动切换' }}”等自动策略在保存系统设置后持久化到浏览器；当前风机发生故障时，健康备机会自动接替（可在“系统设置 / 流程”中关闭）。</p>
   </div>
 </template>
 

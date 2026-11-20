@@ -127,12 +127,12 @@ export function createSeedQuestions(): WorkspaceQuestion[] {
       id: `${tag.toLowerCase()}-${row.Qid}`, type: row.QType as QuestionType, content: row.Title,
       options: row.Options.map((option, index) => ({ id: `${tag.toLowerCase()}-${row.Qid}-${index}`, text: option.Content, correct: row.Answer.includes(String.fromCharCode(65 + index)) })),
       explanation: row.Explain, tags: [tag], points: 1, locked: false,
-      source: `原 WPF · Simulator.Library/ExamJson/${tag}Exam.json（答案待教师校核）`, updatedAt: '',
+      source: `${tag} 题库（答案待教师校核）`, updatedAt: '',
     })),
   )
 }
 export interface NativeExamItem { id: number; type: string; name: string; minutes: number; flowId: string; note: string }
-const nativeNote = '原 WPF 条目只有名称，未提供独立完整评分定义；Web 按关联流程作本地训练，正式规则需教师确认。'
+const nativeNote = '该题未提供独立完整评分定义；可练习关联流程，考评规则需教师配置。'
 export const nativePracticeItems: NativeExamItem[] = [
   { id: 1, type: '操作题', name: '完成惰化操作练习', minutes: 10, flowId: 'shore-inerting', note: '' },
   { id: 2, type: '操作题', name: '完成注操作练习', minutes: 10, flowId: 'bunkering', note: '' },
@@ -150,8 +150,8 @@ export const nativePracticeItems: NativeExamItem[] = [
   { id: 14, type: '故障模拟', name: '完成传感器警报操作练习', minutes: 20, flowId: 'supply', note: nativeNote },
 ]
 export const nativeExamItems: NativeExamItem[] = [
-  { id: 1, type: 'T11选择题', name: 'T11题库随机题目', minutes: 60, flowId: '', note: '原 WPF 时间字段为 0；本地默认 60 分钟，开始前可调整。' },
-  { id: 2, type: 'T12选择题', name: 'T12题库随机题目', minutes: 60, flowId: '', note: '原 WPF 时间字段为 0；本地默认 60 分钟，开始前可调整。' },
+  { id: 1, type: 'T11选择题', name: 'T11题库随机题目', minutes: 60, flowId: '', note: '默认时长为 60 分钟，开始前可调整。' },
+  { id: 2, type: 'T12选择题', name: 'T12题库随机题目', minutes: 60, flowId: '', note: '默认时长为 60 分钟，开始前可调整。' },
   { id: 3, type: '实际操作题', name: '完成惰化操作', minutes: 10, flowId: 'shore-inerting', note: '' },
   { id: 4, type: '实际操作题', name: '完成加注操作', minutes: 10, flowId: 'bunkering', note: '' },
   { id: 5, type: '实际操作题', name: '完成扫气操作', minutes: 10, flowId: 'bunkering-purge', note: '' },

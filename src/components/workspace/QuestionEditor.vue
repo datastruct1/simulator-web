@@ -34,7 +34,7 @@ function save() { error.value = validateQuestion(model.value); if (!error.value)
       <label class="field-group full"><span>答案解析</span><textarea v-model="model.explanation" class="field" rows="4" :disabled="model.locked" placeholder="查看答案或提交后显示的解析" /></label>
       <label class="field-group full"><span>题目来源 / 校核说明</span><input v-model="model.source" class="field" :disabled="model.locked" /></label>
     </div>
-    <div class="ws-source">原 WPF 声明：题目来源于网络搜集。Web 保留原始答案与解析，可能存在矛盾或错误，请教师校核后用于教学。</div>
+    <div class="ws-source">题目及答案请经教师校核后用于教学。</div>
     <div class="form-actions"><button type="button" class="btn" @click="emit('cancel')">取消</button><button type="button" class="btn btn-danger" :disabled="model.locked" @click="emit('remove')">删除</button><button type="submit" class="btn btn-primary" :disabled="model.locked"><UiIcon name="Save" :size="15" />保存</button></div>
   </form>
   <BaseModal v-if="tagDialog" title="选择或输入标签" :width="470" @close="tagDialog = false"><div class="ws-modal-content ws-stack"><div class="ws-tag-row"><button v-for="tag in availableTags" :key="tag" class="ws-chip" :class="{ active: tagInput === tag }" @click="tagInput = tag">{{ tag }}</button></div><label class="field-group"><span>新标签内容</span><input v-model="tagInput" class="field" maxlength="60" placeholder="例如 T11、加注安全" @keyup.enter="addTag" /></label></div><template #footer><button class="btn" @click="tagDialog = false">取消</button><button class="btn btn-primary" :disabled="!tagInput.trim()" @click="addTag">确定</button></template></BaseModal>

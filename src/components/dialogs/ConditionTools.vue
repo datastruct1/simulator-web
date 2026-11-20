@@ -105,16 +105,16 @@ async function importFile(event: Event) {
     <template v-else>
       <section class="card note-card">
         <h3>加载方式</h3>
-        <p>可选原 WPF 的 {{ presetRows.length }} 组工况、本浏览器保存的工况快照，或导入本 Web 版本导出的 JSON 文件。载入后会停止当前流程并覆盖设备状态。</p>
+        <p>可选择 {{ presetRows.length }} 组预置工况、本浏览器保存的工况快照，或导入工况文件。载入后会停止当前流程并覆盖设备状态。</p>
         <div class="import-row">
           <button class="btn btn-primary" type="button" @click="fileInput?.click()"><UiIcon name="Upload" :size="14" />选择工况 JSON 文件</button>
           <input ref="fileInput" class="visually-hidden" type="file" accept="application/json,.json" @change="importFile">
           <span v-if="importedFile" class="file-note">最近选择：{{ importedFile }}</span>
-          <span class="hint">仅支持本 Web 版本 schemaVersion 1 工况 JSON；不支持原 WPF 工况文件的全部格式。</span>
+          <span class="hint">请选择本系统导出的工况文件。</span>
         </div>
       </section>
       <section class="preset-list">
-        <div class="panel-heading"><h3>原 WPF 预置工况（{{ presetRows.length }} 组）</h3><span class="count-note">来自 Resources/Jsons</span></div>
+        <div class="panel-heading"><h3>预置工况（{{ presetRows.length }} 组）</h3></div>
         <ToolTable :rows="presetRows" :columns="presetColumns" default-sort="label" empty-text="没有可用的预置工况。">
           <template #cell-actions="{ row }"><button class="btn btn-sm" type="button" @click="askPreset(row)">载入</button></template>
         </ToolTable>

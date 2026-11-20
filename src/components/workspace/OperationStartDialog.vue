@@ -12,7 +12,7 @@ const workspace = useWorkspace(), mode = ref<AssessmentMode>(props.mode), minute
 watch(mode, () => { tab.value = 'attention'; agreed.value = false })
 const item = computed(() => workspace.operationItems.value.find(item => item.id === props.operationId))
 const flow = computed(() => workflows.find(flow => flow.id === (item.value?.flowId || props.operationId)))
-const attention = ['本界面为本地前端操作训练，不等同于真实船舶操作或正式认证考评。', '需要惰化 / 加注安全检查的流程，必须完成加注作业前安全检查表，未通过时不能开始。', '按工艺步骤手动操作设备。自动演示和其他流程的进度不会计入本次手动考核。', '考评时采用真实时间计时，离开工作台或切换工艺页面不会暂停。练习模式显示提示并记录用时。', '操作完成后返回工作台点击“交卷 / 提交练习”。系统根据本次实际步骤、设备条件或操作次序自动评分，并保存历史。']
+const attention = ['训练不替代真实船舶作业或正式认证考评。', '需要惰化 / 加注安全检查的流程，必须完成加注作业前安全检查表，未通过时不能开始。', '按工艺步骤手动操作设备。自动演示和其他流程的进度不会计入本次手动考核。', '考评时采用真实时间计时，离开工作台或切换工艺页面不会暂停。练习模式显示提示并记录用时。', '操作完成后返回工作台点击“交卷 / 提交练习”。系统根据本次实际步骤、设备条件或操作次序自动评分，并保存历史。']
 function start() {
   if (!agreed.value) return
   const started = workspace.requestOperation({ operationId: props.operationId, title: props.title || item.value?.name, mode: mode.value, returnPage: props.returnPage, durationMinutes: minutes.value })

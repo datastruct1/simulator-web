@@ -32,7 +32,7 @@ function remove() { if (removing.value) workspace.removeStudent(removing.value.i
   <button class="btn" @click="open = true"><UiIcon name="Users" :size="15" />学生名册</button>
   <BaseModal v-if="open" title="学生列表 · 本地名册管理" :width="950" @close="open = false">
     <div class="ws-modal-content">
-      <div class="ws-note">名册仅用于本浏览器的任务指派，不代表已连接或在线学生。可导入 CSV（学号、姓名、班级）或 JSON；浏览器版不处理 WPF 的 XLSX 格式。</div>
+      <div class="ws-note">名册用于当前浏览器的任务指派。支持导入 CSV（学号、姓名、班级）或 JSON 文件。</div>
       <div class="toolbar"><input v-model="query" class="field" style="max-width:270px" placeholder="搜索学号、姓名、班级" /><button class="btn" @click="input?.click()">导入名册</button><button class="btn" @click="exportRoster">导出名册</button><button class="btn btn-primary" @click="create">新增学员</button><input ref="input" type="file" accept=".csv,.json" hidden @change="importRoster" /></div>
       <div class="ws-analysis-grid">
         <div class="ws-table-wrap"><table class="data-table"><thead><tr><th>学号</th><th>姓名</th><th>班级</th><th>操作</th></tr></thead><tbody><tr v-for="student in students" :key="student.id"><td>{{ student.studentNo }}</td><td>{{ student.name }}</td><td>{{ student.group }}</td><td><div class="ws-inline"><button class="btn btn-sm" @click="draft = clone(student)">编辑</button><button class="btn btn-sm btn-danger" @click="removing = student">移除</button></div></td></tr><tr v-if="!students.length"><td colspan="4" class="empty-state">没有匹配的学员</td></tr></tbody></table></div>

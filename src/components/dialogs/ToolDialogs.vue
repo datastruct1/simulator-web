@@ -29,7 +29,7 @@ const type = computed(() => state.modal?.type || '')
   <div v-else class="unknown-tool card">
     <UiIcon name="CircleHelp" :size="34" />
     <h3>{{ state.modal?.title || '未识别工具' }}</h3>
-    <p>当前 Web 版本没有名为 <code>{{ type || '（空）' }}</code> 的二级工具窗口。可用的工具：设备监测、实时趋势、传感器设置、异常配置、通风系统、物品柜、系统日志、操作记录、加载 / 保存工况、系统设置、系统介绍、仿真调试、速度控制、报警历史与操作提示。</p>
+    <p>该工具暂不可用，请返回后选择其他功能。</p>
     <button class="btn btn-primary" type="button" @click="closeModal">关闭窗口</button>
   </div>
 </template>
