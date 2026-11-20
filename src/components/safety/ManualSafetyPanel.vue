@@ -1,14 +1,26 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useSimulator } from '../../state/simulator'
-import { workflows } from '../../data/catalog'
 import { MEDIA, pipingTopology } from '../../data/piping'
 import UiIcon from '../common/UiIcon.vue'
 
 const { state, isFreeManual, navigate, manualFlow, setManualFlow } = useSimulator()
 const active = computed(isFreeManual)
 const collapsed = ref(false)
-const categories = [...new Set(workflows.map(flow => flow.category))]
+const handbookFlows = [
+  { label: '2.1 船载惰化', id: 'ship-inerting' },
+  { label: '2.2 岸载惰化', id: 'shore-inerting' },
+  { label: '2.3 甲醇加注', id: 'bunkering' },
+  { label: '2.4 加注扫气', id: 'bunkering-purge' },
+  { label: '2.5 甲醇供应（备机）', id: 'supply-aux' },
+  { label: '2.5 甲醇供应（主机）', id: 'supply-main' },
+  { label: '2.5 供应后扫气', id: 'supply-purge' },
+  { label: '2.6 废液回收', id: 'recovery-waste' },
+  { label: '2.6 废液排岸', id: 'shore-discharge' },
+  { label: '2.7 水乙二醇升温', id: 'heating' },
+  { label: '2.7 水乙二醇降温', id: 'cooling' },
+]
+const showCurrentFlow = computed(() => !handbookFlows.some(flow => flow.id === state.manualFlowId))
 const media = computed(() => [...new Set(pipingTopology.flowProfiles[state.manualFlowId]?.activePipes.map(pipe => pipe.medium) || [])].map(id => MEDIA.find(medium => medium.id === id)?.label || id).join(' / ') || '无流动介质')
 const pageNames: Record<string, string> = { overview: '系统总览', nitrogen: '氮气供应', 'bunkering-front': '加注前端', bunkering: '甲醇加注', 'fuel-tank': '燃料舱', lfss: '燃料准备间', engine: '发动机舱', water: '冷热水', recovery: '回收撬块' }
 const flowPages = computed(() => {
@@ -30,9 +42,10 @@ const flowPages = computed(() => {
     <div class="process-picker">
       <label for="manual-flow-select">手动工艺（方向与介质）</label>
       <select id="manual-flow-select" :value="state.manualFlowId" data-testid="manual-flow-select" @change="setManualFlow(($event.target as HTMLSelectElement).value)">
-        <optgroup v-for="category in categories" :key="category" :label="category"><option v-for="flow in workflows.filter(item => item.category === category)" :key="flow.id" :value="flow.id">{{ flow.name }}</option></optgroup>
+        <option v-for="flow in handbookFlows" :key="flow.id" :value="flow.id">{{ flow.label }}</option>
+        <option v-if="showCurrentFlow" :value="state.manualFlowId">{{ manualFlow?.name || '当前工艺' }}</option>
       </select>
-      <small data-testid="manual-medium-label">{{ media }} · 与对应演示定义一致</small>
+      <small data-testid="manual-medium-label">{{ media }}</small>
     </div>
     <template v-if="!collapsed">
       <p class="sandbox-note">任意顺序操作，安全只提示、不拦截，但不会绕过关阀或凭空造源。填充从工艺介质源延伸；贯通出口或运行泵循环后才流动。关阀前可以静态填充，孤立支路和死端不播放流动。</p>

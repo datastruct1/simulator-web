@@ -16,3 +16,21 @@ test('手动操作模式清晰显示并可暂停、继续和退出', async ({ pa
   await status.getByRole('button', { name: '退出手动操作' }).click()
   await expect(status).toHaveCount(0)
 })
+
+test('手动工艺按手册顺序选择且切换不改变设备状态', async ({ page }) => {
+  await page.goto('/simulator-web/?demo=1')
+  await page.getByTestId('start-manual').click()
+  const select = page.getByTestId('manual-flow-select')
+  await expect(select.locator('option')).toHaveText(['2.1 船载惰化', '2.2 岸载惰化', '2.3 甲醇加注', '2.4 加注扫气', '2.5 甲醇供应（备机）', '2.5 甲醇供应（主机）', '2.5 供应后扫气', '2.6 废液回收', '2.6 废液排岸', '2.7 水乙二醇升温', '2.7 水乙二醇降温'])
+  const snapshot = async () => page.evaluate(async () => {
+    const resource = performance.getEntriesByType('resource').find(item => item.name.includes('/src/state/simulator.ts'))
+    if (!resource) throw new Error('模拟器状态未加载')
+    return JSON.stringify((await import(resource.name)).useSimulator().state.devices)
+  })
+  const before = await snapshot()
+  await select.selectOption('shore-inerting')
+  await expect(page.getByTestId('wpf-scene')).toHaveAttribute('data-manual-flow', 'shore-inerting')
+  await select.selectOption('cooling')
+  await expect(page.getByTestId('wpf-scene')).toHaveAttribute('data-manual-flow', 'cooling')
+  expect(await snapshot()).toBe(before)
+})
