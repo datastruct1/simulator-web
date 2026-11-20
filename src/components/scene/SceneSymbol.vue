@@ -61,6 +61,9 @@ const gaugeRatio = computed(() => {
   return Math.max(0, Math.min(1, (value.value - min) / Math.max(0.000001, max - min)))
 })
 const tankPercent = computed(() => Math.max(0, Math.min(100, value.value * ((props.device?.max ?? 1) <= 1 ? 100 : 1))))
+const waterTankImageHeight = computed(() => Math.min(h.value, w.value * 0.664 * 559 / 346))
+const waterTankLevelX = computed(() => Math.min(w.value * 0.733, w.value * 0.497 + waterTankImageHeight.value * 0.45 - w.value * 0.221 - 2))
+const waterTankLevel = computed(() => Math.max(0, Math.min(1, (value.value - (props.device?.min ?? 0)) / Math.max(0.000001, (props.device?.max ?? 100) - (props.device?.min ?? 0)))))
 const stationImage = computed(() => {
   const type = /车|船|岸|站/.test(props.device?.mode ?? '') ? props.device!.mode : props.stationType || a('stationType', '加注车')
   return `/simulator-web/assets/controls/FuelStation/${/船|ship/i.test(type) ? 'FuelShip.png' : /岸|站|coast/i.test(type) ? '1.png' : 'FuelCar.png'}`
@@ -123,8 +126,8 @@ function inputValue(event: Event) {
 
     <template v-else-if="node.kind === 'water-tank'">
       <image :href="image" :x="w * 0.165" :y="-h * 0.028" :width="w * 0.664" :height="h" preserveAspectRatio="xMidYMid meet" :transform="`rotate(90 ${w * 0.497} ${h * 0.472})`" />
-      <rect :x="w * 0.733" :y="h * 0.36" :width="w * 0.221" :height="h * 0.228" fill="white" stroke="black" stroke-width="1" />
-      <rect :x="w * 0.739" :y="h * (0.58 - 0.21 * Math.max(0, Math.min(1, value > 1 ? value / 100 : value || 0.5)))" :width="w * 0.207" :height="h * 0.21 * Math.max(0, Math.min(1, value > 1 ? value / 100 : value || 0.5))" fill="#00cc00" opacity="0.7" />
+      <rect data-water-tank-level-frame :x="waterTankLevelX" :y="h * 0.36" :width="w * 0.221" :height="h * 0.228" fill="white" stroke="black" stroke-width="1" />
+      <rect data-water-tank-level-fill :x="waterTankLevelX + w * 0.006" :y="h * (0.58 - 0.21 * waterTankLevel)" :width="w * 0.207" :height="h * 0.21 * waterTankLevel" fill="#00cc00" opacity="0.7" />
     </template>
 
     <image v-else-if="['nitrogen-cylinder', 'balance-tank', 'heater', 'filter', 'dual-filter', 'image'].includes(node.kind)" :href="image" :width="w" :height="h" :preserveAspectRatio="['nitrogen-cylinder', 'balance-tank', 'heater', 'dual-filter'].includes(node.kind) ? 'none' : 'xMidYMid meet'" />
