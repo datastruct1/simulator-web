@@ -326,7 +326,7 @@ defineExpose({ fit, zoomIn, zoomOut, focusDevice, zoomToRegion })
     <div class="pipe-legend" aria-label="管道介质图例" data-testid="pipe-legend">
       <span v-for="medium in MEDIA.filter(item => item.id !== 'empty')" :key="medium.id" class="medium-key" :data-medium="medium.id"><i :style="{ backgroundColor: medium.color }" />{{ medium.label }}</span>
       <span class="pipe-fill-summary" data-testid="pipe-fill-summary">已填充 {{ filledPipes }} 段 · 流动 {{ flowingPipes }} 段</span>
-      <span class="pipe-context" data-testid="pipe-context">{{ freeManual ? `${manualDefinition?.name || '未选择工艺'} · 沿用演示流向 · ${running ? '流动须有实际贯通通路' : '暂停，保留静态填充'}` : !flowId ? '未启动流程 · 空管' : running ? '按当前流程与阀门连通状态显示' : '流动已停止 · 静态填充保留' }}</span>
+      <span class="pipe-context" data-testid="pipe-context">{{ freeManual ? `${manualDefinition?.name || '未选择工艺'} · ${running ? '流动须有实际贯通通路' : '暂停，保留静态填充'}` : !flowId ? '未启动流程 · 空管' : running ? '按当前流程与阀门连通状态显示' : '流动已停止 · 静态填充保留' }}</span>
       <span v-for="warning in piping.summary.warnings || []" :key="warning" class="pipe-context" role="status">{{ warning }}</span>
     </div>
     <div ref="viewport" class="scene-viewport" :class="{ dragging, 'select-region': regionSelect }" tabindex="0" aria-label="工艺图画布，滚轮缩放，拖动平移，按0全图适配" @keydown="keydown" @mouseleave="hover = undefined">

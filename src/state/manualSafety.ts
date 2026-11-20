@@ -33,16 +33,16 @@ export function evaluateManualSafety(devices: Readonly<Record<string, DeviceStat
     if (station?.moored === false) add('mooring', '系泊 / 槽罐车就位尚未确认', '加注双方应就系泊和护舷安排达成协议，并确认槽罐车位置合适。', ['FuelStation'], check('检查项 9、槽罐车就位流程'))
     if (station?.emergencyStop === true && station.working === true) add('emergency-stop', '急停状态下继续供给', '急停信号和紧急切断程序应商定且经过测试。当前是自由试验中的强制供给，不表示真实急停已复位。', ['FuelStation'], check('甲醇传输项 15'))
     const fans = ['FanForPit1AMaster', 'FanForPit1ABackup']
-    if (fans.some(id => get(id)) && !fans.some(id => get(id)?.working === true && get(id)?.error !== true)) add('ventilation', '燃料隔离空舱通风未运行', '检查通风设备状态；原 WPF 配置了主 / 备风机及异常切换。本模式仅提醒，不自动启动风机。', fans, 'WPF FanSettingViewModel / ErrorAutoTriggerService')
+    if (fans.some(id => get(id)) && !fans.some(id => get(id)?.working === true && get(id)?.error !== true)) add('ventilation', '燃料隔离空舱通风未运行', '请检查主、备风机状态。手动模式不会自动启动风机。', fans, 'WPF FanSettingViewModel / ErrorAutoTriggerService')
     const tank = get('T101')
     const capacity = tank?.currentCapacity, maximum = tank?.maxCapacity
     const ratio = finite(capacity) && finite(maximum) && maximum > 0 ? capacity / maximum : (tank?.value ?? 0) / 100
-    if (ratio > .95) add('overfill', '燃料舱液位超过 95%', '受注船燃料舱应防止过充，持续监测舱容并正确设置报警装置。原 WPF 在超过 95% 时发出警报；本模式不自动关阀。', ['T101', 'Lit101', 'M1102', 'M1602'], 'WPF AutomationTicktock.CheckT101TankLevelAsync / 甲醇传输项 20')
+    if (ratio > .95) add('overfill', '燃料舱液位超过 95%', '受注船燃料舱应防止过充，持续监测舱容并正确设置报警装置。手动模式不会自动关阀。', ['T101', 'Lit101', 'M1102', 'M1602'], 'WPF AutomationTicktock.CheckT101TankLevelAsync / 甲醇传输项 20')
   }
 
   const pressure = get('Pit101')
-  if (finite(pressure?.value) && pressure.value > 16 && !open('B11')) add('pressure-relief', '燃料舱压力高，B11 尚未打开', '原 WPF 自动控制规则在 Pit101 > 16 时打开 B11，并在低于 14 时关闭。自由模式只提示，不替你改变阀门。', ['Pit101', 'B11'], 'WPF 自动控制Ruleset · Pit101 > 16')
-  if (get('P101')?.error === true && get('P102')?.error === true && open('M1201')) add('dual-pump', '供应泵全故障，M1201 仍开启', '原 WPF 在两台供应泵全部故障时自动关闭 M1201。本模式保留你的操作，只提示故障风险。', ['P101', 'P102', 'M1201'], 'WPF ErrorAutoTriggerService · 燃料供应泵全坏后自动断流')
+  if (finite(pressure?.value) && pressure.value > 16 && !open('B11')) add('pressure-relief', '燃料舱压力高，B11 尚未打开', '请检查燃料舱压力及 B11 状态。手动模式不会自动调整阀门。', ['Pit101', 'B11'], 'WPF 自动控制Ruleset · Pit101 > 16')
+  if (get('P101')?.error === true && get('P102')?.error === true && open('M1201')) add('dual-pump', '供应泵全故障，M1201 仍开启', '两台供应泵均已故障，请检查 M1201。手动模式不会自动关阀。', ['P101', 'P102', 'M1201'], 'WPF ErrorAutoTriggerService · 燃料供应泵全坏后自动断流')
 
   for (const device of new Set(index.values())) {
     const operated = ['valve', 'hose'].includes(device.kind || '') ? (device.value ?? 0) > 0 : device.working === true

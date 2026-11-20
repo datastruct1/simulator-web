@@ -21,7 +21,7 @@ test('手动工艺按手册顺序选择且切换不改变设备状态', async ({
   await page.goto('/simulator-web/?demo=1')
   await page.getByTestId('start-manual').click()
   const select = page.getByTestId('manual-flow-select')
-  await expect(select.locator('option')).toHaveText(['2.1 船载惰化', '2.2 岸载惰化', '2.3 甲醇加注', '2.4 加注扫气', '2.5 甲醇供应（备机）', '2.5 甲醇供应（主机）', '2.5 供应后扫气', '2.6 废液回收', '2.6 废液排岸', '2.7 水乙二醇升温', '2.7 水乙二醇降温'])
+  await expect(select.locator('option')).toHaveText(['船载惰化', '岸载惰化', '甲醇加注', '加注扫气', '甲醇供应（备机）', '甲醇供应（主机）', '供应后扫气', '废液回收', '废液排岸', '水乙二醇升温', '水乙二醇降温'])
   const snapshot = async () => page.evaluate(async () => {
     const resource = performance.getEntriesByType('resource').find(item => item.name.includes('/src/state/simulator.ts'))
     if (!resource) throw new Error('模拟器状态未加载')
@@ -32,5 +32,9 @@ test('手动工艺按手册顺序选择且切换不改变设备状态', async ({
   await expect(page.getByTestId('wpf-scene')).toHaveAttribute('data-manual-flow', 'shore-inerting')
   await select.selectOption('cooling')
   await expect(page.getByTestId('wpf-scene')).toHaveAttribute('data-manual-flow', 'cooling')
+  const panel = page.getByTestId('manual-safety-panel')
+  await expect(panel.getByText('安全检查尚未确认')).toBeVisible()
+  await expect(panel).not.toContainText(/WPF|ViewModel|Ruleset/)
+  expect(await select.evaluate((el: HTMLSelectElement) => !CSS.supports('appearance: base-select') || getComputedStyle(el.options[1]!).marginTop === '3px')).toBe(true)
   expect(await snapshot()).toBe(before)
 })
