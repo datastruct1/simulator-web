@@ -208,6 +208,7 @@ function fillFromSources(
   sources: FlowSource[],
   graph: Graph,
   devices: Record<string, DeviceState>,
+  allowRoute: (route: PipeRoute, medium: MediumId) => boolean = () => true,
 ): { fills: Map<string, FillEntry>; conflicts: PipingConflict[]; blockedBy: Map<string, string> } {
   const fills = new Map<string, FillEntry>()
   const blockedBy = new Map<string, string>()
@@ -270,7 +271,7 @@ function fillFromSources(
       const adjacent = graph.adjacency.get(node) ?? []
       for (const { routeIndex, route, other } of adjacent) {
         if (restricted && other !== restrictTo) continue
-        if (visitedRoutes.has(routeIndex) || !canLeaveNode(node, route, index)) continue
+        if (visitedRoutes.has(routeIndex) || !canLeaveNode(node, route, index) || !allowRoute(route, source.medium)) continue
         visitedRoutes.add(routeIndex)
         const movingForward = node === route.from
         const inner = throughInner || graph.innerJunctions.has(node) || graph.innerJunctions.has(other)
@@ -340,7 +341,7 @@ interface TransportResult {
 }
 
 /** Only proven source-to-outlet paths or powered circulation loops may move. */
-function transportFromSources(sources: FlowSource[], graph: Graph, devices: Record<string, DeviceState>, profile: FlowProfile): TransportResult {
+function transportFromSources(sources: FlowSource[], graph: Graph, devices: Record<string, DeviceState>, profile: FlowProfile, allowRoute: (route: PipeRoute, medium: MediumId) => boolean = () => true): TransportResult {
   const index = deviceIndex(devices)
   const authored = new Set(profile.activePipes.map(pipe => graph.canonical(pipe.pipe)))
   const result: TransportResult = { pipes: new Map(), reachedTanks: new Set(), warnings: [] }
@@ -379,7 +380,7 @@ function transportFromSources(sources: FlowSource[], graph: Graph, devices: Reco
     const walk = (node: string) => {
       if (++visits > 50000) return
       for (const edge of graph.adjacency.get(node) || []) {
-        if (used.has(edge.routeIndex) || !traverse(node, edge.route, edge.other)) continue
+        if (used.has(edge.routeIndex) || !traverse(node, edge.route, edge.other) || !allowRoute(edge.route, source.medium)) continue
         if (!routes.length && source.kind === 'root' && source.via && edge.other !== source.via) continue
         const nextRoutes = [...routes, edge.route]
         const endAuthored = !profile.animationGroups.length || edge.route.segments.some(segment => authored.has(graph.canonical(segment.pipe)))
@@ -422,11 +423,11 @@ function processSources(profile: FlowProfile): { fill: FlowSource[]; vent: FlowS
   return { fill: [...profile.sources, ...vent], vent }
 }
 
-function processTransport(profile: FlowProfile, graph: Graph, devices: Record<string, DeviceState>): TransportResult {
-  const result = transportFromSources(profile.sources, graph, devices, profile)
+function processTransport(profile: FlowProfile, graph: Graph, devices: Record<string, DeviceState>, allowRoute?: (route: PipeRoute, medium: MediumId) => boolean): TransportResult {
+  const result = transportFromSources(profile.sources, graph, devices, profile, allowRoute)
   const vent = processSources(profile).vent
   if (vent.length && result.reachedTanks.has('T101')) {
-    const displaced = transportFromSources(vent, graph, devices, profile)
+    const displaced = transportFromSources(vent, graph, devices, profile, allowRoute)
     for (const [id, media] of displaced.pipes) {
       const existing = result.pipes.get(id) || new Set<MediumId>()
       for (const medium of media) existing.add(medium)
@@ -512,8 +513,17 @@ function resolveManualPiping(devices: Record<string, DeviceState>, options: Pipi
   const palette = profile ? manualFlowPalette(profile, sandbox, topology) : { pipes: new Map<string, ActivePipe>(), warnings: ['请选择一个有效的手动工艺；未选择时不推测介质和方向。'] }
   // A missing device snapshot is not a plant with every valve closed; leave it blank until initialized.
   const sources = profile && Object.values(sandbox).some(device => typeof device.id === 'string' && device.id.length > 0) ? processSources(profile).fill : []
-  const resolved = fillFromSources(sources, graph, sandbox)
-  const transport = profile ? processTransport(profile, graph, sandbox) : { pipes: new Map<string, Set<MediumId>>(), warnings: [] }
+  // A route containing segments assigned to the other medium cannot be used as
+  // a shortcut between the liquid inlet and the tank's displaced-gas line.
+  const allowRoute = (route: PipeRoute, medium: MediumId) => {
+    if (profile?.id !== 'bunkering') return true
+    return route.segments.every(segment => {
+      const authored = palette.pipes.get(graph.canonical(segment.pipe))
+      return !authored || authored.medium === medium
+    })
+  }
+  const resolved = fillFromSources(sources, graph, sandbox, allowRoute)
+  const transport = profile ? processTransport(profile, graph, sandbox, allowRoute) : { pipes: new Map<string, Set<MediumId>>(), warnings: [] }
   const conflicts = new Set(resolved.conflicts.map(conflict => conflict.pipe))
   const pipes: Record<string, PipeVisualState> = {}
   for (const id of graph.allPipes) {

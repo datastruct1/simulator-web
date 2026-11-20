@@ -50,3 +50,22 @@ test('手册主备机组合不能因缺少连通设备而伪造流动', () => {
     assert.equal(result.summary.flowingCount, 0, `${flowId} 需要补充连通依据而不是猜测`)
   }
 })
+
+test('手动甲醇加注：M1001 气相线与 M1002 液相线按实际来源分离', () => {
+  const devices = plant('V1002 V1602 V1601 V1001 M1004 M1003 M1002 M1602 M1102 M1101 M1601 M1001 M1006 Rg001 Rg002 Rg003')
+  const options = { flowId: '__manual__', manualFlowId: 'bunkering', running: true }
+  for (const opening of [0, 100]) {
+    Object.assign(devices.M1005, { value: opening, working: opening > 0 })
+    const result = resolvePiping(devices, options)
+    for (const id of ['1756445628569', '1756445413574', '271432', '1756445531570']) {
+      assert.equal(result.pipes[id].medium, 'nitrogen', id)
+      assert.equal(result.pipes[id].sourceId, 'T101', id)
+      assert.equal(result.pipes[id].flowing, true, id)
+    }
+    for (const id of ['34', '1756445944577']) { assert.equal(result.pipes[id].medium, 'methanol'); assert.equal(result.pipes[id].flowing, true) }
+  }
+  Object.assign(devices.M1001, { value: 0, working: false })
+  const blocked = resolvePiping(devices, options)
+  assert.equal(blocked.pipes['1756445413574'].flowing, false)
+  assert.equal(blocked.pipes['1756445531570'].flowing, false)
+})

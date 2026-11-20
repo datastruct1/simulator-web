@@ -96,3 +96,18 @@ test('真实冷热水图切换加热/降温：水和水乙二醇不同介质，�
   await expect(page.locator('[data-pipe-flow][data-medium="cold-water-glycol"]').first()).toBeAttached()
   expect((await deviceSnapshot(page)).devices).toBe(before.devices)
 })
+
+test('手动加注：打开 M1005 时 M1001 气相管仍为氮气且手动模式保持运行', async ({ page }) => {
+  await readyPlant(page, 'bunkering')
+  await navigateScene(page, 'bunkering-front')
+  await page.getByTestId('start-manual').click()
+  await patchDevices(page, { M1005: { value: 100, working: true } })
+  for (const id of ['1756445628569', '1756445413574']) {
+    const line = page.locator(`[data-pipe-fill][data-pipe-id="${id}"]`).first()
+    await expect(line).toHaveAttribute('data-medium', 'nitrogen')
+  }
+  await expect(page.getByTestId('manual-status')).toContainText('手动操作模式')
+  await expect(page.getByTestId('wpf-scene')).toHaveAttribute('data-manual-flow', 'bunkering')
+  await patchDevices(page, { M1005: { value: 0, working: false } })
+  await expect(page.getByTestId('manual-status')).toContainText('运行中')
+})
