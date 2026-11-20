@@ -44,6 +44,7 @@ for (const [id, profile] of Object.entries<any>(archive.flowProfiles)) {
     const after = await deviceSnapshot(page)
     expect(after).toMatchObject({ devices: before.devices, flowId: '', manualFlowId: id, automatic: false })
     const expected = new Map<string, any>(profile.activePipes.map((pipe: any) => [canonical(pipe.pipe), pipe]))
+    if (id === 'bunkering-purge') expected.set('1756445132569', { ...expected.get('37'), pipe: '1756445132569' })
     const actual: Awaited<ReturnType<typeof visibleFlows>> = []
     for (const scene of scenes) {
       await navigateScene(page, scene)
@@ -122,4 +123,18 @@ test('手动加注扫气：储罐出口经 V1601、M1601 回气且关阀停止',
   await patchDevices(page, { M1601: { value: 0, working: false } })
   await expect(page.locator('[data-pipe-flow][data-pipe-id="30"]')).toHaveCount(0)
   await expect(page.getByTestId('manual-status')).toContainText('运行中')
+})
+
+test('手动加注扫气：V1609 到 D1604 的整段氮气管路连续填充', async ({ page }) => {
+  await readyPlant(page, 'bunkering-purge')
+  await navigateScene(page, 'bunkering')
+  await page.getByTestId('start-manual').click()
+  for (const node of ['bunkering-pipe-3', 'bunkering-pipe-12', 'bunkering-pipe-13', 'bunkering-pipe-35']) {
+    const fill = page.locator(`[data-pipe-fill="${node}"]`)
+    const flow = page.locator(`[data-pipe-flow="${node}"]`)
+    await expect(fill).toHaveAttribute('data-medium', 'nitrogen')
+    await expect(flow).toHaveAttribute('data-medium', 'nitrogen')
+  }
+  await patchDevices(page, { V1609: { value: 0, working: false } })
+  for (const node of ['bunkering-pipe-3', 'bunkering-pipe-12', 'bunkering-pipe-13', 'bunkering-pipe-35']) await expect(page.locator(`[data-pipe-flow="${node}"]`)).toHaveCount(0)
 })

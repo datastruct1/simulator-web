@@ -22,7 +22,11 @@ function readyPlant(flowId = '') {
   return devices
 }
 const manual = (devices, id, running = true) => resolvePiping(devices, { flowId: '__manual__', manualFlowId: id, running })
-function authored(profile) { return new Map(profile.activePipes.map(pipe => [canonical(pipe.pipe), pipe])) }
+function authored(profile) {
+  const result = new Map(profile.activePipes.map(pipe => [canonical(pipe.pipe), pipe]))
+  if (profile.id === 'bunkering-purge') result.set('1756445132569', { ...result.get('37'), pipe: '1756445132569' })
+  return result
+}
 function assertProfile(result, profile) {
   const expected = authored(profile)
   for (const [id, pipe] of Object.entries(result.pipes)) {

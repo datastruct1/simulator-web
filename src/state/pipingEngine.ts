@@ -499,6 +499,12 @@ function manualFlowPalette(profile: FlowProfile, devices: Record<string, DeviceS
       else warnings.push(`${profile.name}：管段 ${id} 的演示方向 / 介质定义存在多种变体，暂不显示，避免猜测。`)
     }
   }
+  // The V1609–D1604 route includes the long approach on the equipment page.
+  // Its remaining segments carry the same nitrogen direction in this profile.
+  if (profile.id === 'bunkering-purge' && topology.routes.some(route => route.from === 'V1609' && route.to === 'D1604' && route.segments.some(segment => segment.pipe === '1756445132569'))) {
+    const adjacent = pipes.get(canonicalPipeId('37', topology))
+    if (adjacent?.medium === 'nitrogen') pipes.set(canonicalPipeId('1756445132569', topology), { ...adjacent, pipe: '1756445132569' })
+  }
   return { pipes, warnings }
 }
 

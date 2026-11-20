@@ -32,7 +32,7 @@ for (const [flowId, ids] of cases) test(`${flowId} 手册设备组合：手动�
   assert.ok(result.summary.flowingCount > 0)
   for (const [id, pipe] of Object.entries(result.pipes)) {
     if (pipe.flowing) {
-      const authored = profile.activePipes.filter(item => canonicalPipeId(item.pipe) === id)
+      const authored = profile.activePipes.filter(item => canonicalPipeId(item.pipe) === id || (flowId === 'bunkering-purge' && id === '1756445132569' && item.pipe === '37'))
       assert.ok(authored.some(item => item.medium === pipe.medium && item.flowForward === pipe.forward), `${flowId}/${id}`)
     }
     assert.deepEqual(paused.pipes[id], { ...pipe, flowing: false })
@@ -74,6 +74,11 @@ test('手动加注扫气：氮气到达储罐后由罐顶进入回气支路', ()
   const devices = plant('V1701 V1702 V1001 V1609 V1601 V1602 M1101 M1102 C1701 H1710 H1242 H1243 M1006 M1001 M1601 M1602 D1604 Rg001 Rg002 Rg003')
   const options = { flowId: '__manual__', manualFlowId: 'bunkering-purge', running: true }
   const result = resolvePiping(devices, options)
+  for (const id of ['1756445132569', '37', '39', '1755597240']) {
+    assert.equal(result.pipes[id].medium, 'nitrogen', id)
+    assert.equal(result.pipes[id].sourceId, 'NitSource', id)
+    assert.equal(result.pipes[id].flowing, true, id)
+  }
   for (const id of ['41', '32', '31', '30', '44', '29']) {
     assert.equal(result.pipes[id].medium, 'nitrogen', id)
     assert.equal(result.pipes[id].sourceId, 'T101', id)
