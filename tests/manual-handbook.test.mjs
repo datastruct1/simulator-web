@@ -69,3 +69,26 @@ test('手动甲醇加注：M1001 气相线与 M1002 液相线按实际来源分�
   assert.equal(blocked.pipes['1756445413574'].flowing, false)
   assert.equal(blocked.pipes['1756445531570'].flowing, false)
 })
+
+test('手动加注扫气：氮气到达储罐后由罐顶进入回气支路', () => {
+  const devices = plant('V1701 V1702 V1001 V1609 V1601 V1602 M1101 M1102 C1701 H1710 H1242 H1243 M1006 M1001 M1601 M1602 D1604 Rg001 Rg002 Rg003')
+  const options = { flowId: '__manual__', manualFlowId: 'bunkering-purge', running: true }
+  const result = resolvePiping(devices, options)
+  for (const id of ['41', '32', '31', '30', '44', '29']) {
+    assert.equal(result.pipes[id].medium, 'nitrogen', id)
+    assert.equal(result.pipes[id].sourceId, 'T101', id)
+    assert.equal(result.pipes[id].flowing, true, id)
+  }
+  for (const id of ['V1601', 'M1601', 'D1604', 'M1102', 'Rg001']) {
+    const changed = structuredClone(devices)
+    Object.assign(changed[id], { value: 0, working: false, connected: false })
+    const blocked = resolvePiping(changed, options)
+    assert.equal(blocked.pipes['30'].flowing, false, id)
+    if (id === 'D1604' || id === 'M1102') assert.equal(blocked.pipes['41'].filled, false, id)
+  }
+  const paused = resolvePiping(devices, { ...options, running: false })
+  for (const id of ['41', '32', '31', '30', '44', '29']) {
+    assert.equal(paused.pipes[id].filled, true)
+    assert.equal(paused.pipes[id].flowing, false)
+  }
+})

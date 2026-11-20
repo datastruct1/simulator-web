@@ -35,7 +35,7 @@ const valves = [...new Set(pipingTopology.routes.flatMap(route => [route.from, r
 for (const id of Object.keys(pipingTopology.flowProfiles)) {
   test(`${id}：逐个关闭所有拓扑阀门，专属阀前/阀后管段不能继续流动，填充不能来自虚构阀门源`, () => {
     const sources = new Set(pipingTopology.flowProfiles[id].sources.map(source => source.terminal || source.node))
-    if (id === 'bunkering') sources.add('T101') // displaced tank headspace, not an arbitrary valve
+    if (id === 'bunkering' || id === 'bunkering-purge') sources.add('T101') // tank outlet, enabled for purge only when nitrogen reaches the tank
     for (const valve of valves) {
       const devices = ready(id)
       close(devices, [valve])

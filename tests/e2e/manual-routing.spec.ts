@@ -111,3 +111,15 @@ test('手动加注：打开 M1005 时 M1001 气相管仍为氮气且手动模式
   await patchDevices(page, { M1005: { value: 0, working: false } })
   await expect(page.getByTestId('manual-status')).toContainText('运行中')
 })
+
+test('手动加注扫气：储罐出口经 V1601、M1601 回气且关阀停止', async ({ page }) => {
+  await readyPlant(page, 'bunkering-purge')
+  await navigateScene(page, 'bunkering')
+  await page.getByTestId('start-manual').click()
+  for (const id of ['31', '30', '44']) {
+    await expect(page.locator(`[data-pipe-flow][data-pipe-id="${id}"]`).first()).toHaveAttribute('data-medium', 'nitrogen')
+  }
+  await patchDevices(page, { M1601: { value: 0, working: false } })
+  await expect(page.locator('[data-pipe-flow][data-pipe-id="30"]')).toHaveCount(0)
+  await expect(page.getByTestId('manual-status')).toContainText('运行中')
+})

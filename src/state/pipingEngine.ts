@@ -423,9 +423,9 @@ function processSources(profile: FlowProfile): { fill: FlowSource[]; vent: FlowS
   return { fill: [...profile.sources, ...vent], vent }
 }
 
-function processTransport(profile: FlowProfile, graph: Graph, devices: Record<string, DeviceState>, allowRoute?: (route: PipeRoute, medium: MediumId) => boolean): TransportResult {
+function processTransport(profile: FlowProfile, graph: Graph, devices: Record<string, DeviceState>, allowRoute?: (route: PipeRoute, medium: MediumId) => boolean, manualPurge = false): TransportResult {
   const result = transportFromSources(profile.sources, graph, devices, profile, allowRoute)
-  const vent = processSources(profile).vent
+  const vent: FlowSource[] = manualPurge && profile.id === 'bunkering-purge' ? [{ kind: 'root', node: 'T101', via: 'M1101', medium: 'nitrogen' }] : processSources(profile).vent
   if (vent.length && result.reachedTanks.has('T101')) {
     const displaced = transportFromSources(vent, graph, devices, profile, allowRoute)
     for (const [id, media] of displaced.pipes) {
@@ -522,8 +522,10 @@ function resolveManualPiping(devices: Record<string, DeviceState>, options: Pipi
       return !authored || authored.medium === medium
     })
   }
-  const resolved = fillFromSources(sources, graph, sandbox, allowRoute)
-  const transport = profile ? processTransport(profile, graph, sandbox, allowRoute) : { pipes: new Map<string, Set<MediumId>>(), warnings: [] }
+  const transport = profile ? processTransport(profile, graph, sandbox, allowRoute, true) : { pipes: new Map<string, Set<MediumId>>(), reachedTanks: new Set<string>(), warnings: [] }
+  const purgeVent: FlowSource[] = profile?.id === 'bunkering-purge' && transport.reachedTanks.has('T101')
+    ? [{ kind: 'root', node: 'T101', via: 'M1101', medium: 'nitrogen' }] : []
+  const resolved = fillFromSources([...sources, ...purgeVent], graph, sandbox, allowRoute)
   const conflicts = new Set(resolved.conflicts.map(conflict => conflict.pipe))
   const pipes: Record<string, PipeVisualState> = {}
   for (const id of graph.allPipes) {
