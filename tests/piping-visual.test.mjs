@@ -24,6 +24,9 @@ test('软管图形别名与原Rg002共用控制，working=false也不能靠value
   const controller = { id: 'Rg002', kind: 'hose', value: 100, working: true, enabled: true, error: false }
   const devices = { Rg002: controller, Pipe34: controller }
   assert.equal(resolvePipeDrawing(geometry, states, devices, true).hose.filled, true)
+  const upstreamBlocked = resolvePipeDrawing(geometry, { '34': { pipeId: '34', medium: 'empty', filled: false, flowing: false, forward: true, blockedBy: 'V1002' } }, devices, true).hose
+  assert.equal(upstreamBlocked.blockedBy, 'V1002')
+  assert.notEqual(upstreamBlocked.hoseDisconnected, true, '上游关阀不能把已连接软管画成断开')
   for (const patch of [{ working: false }, { value: 0 }, { enabled: false }, { error: true }, { connected: false }]) {
     const blocked = { ...controller, ...patch }
     const result = resolvePipeDrawing(geometry, states, { Rg002: blocked, Pipe34: blocked }, true).hose
@@ -31,6 +34,7 @@ test('软管图形别名与原Rg002共用控制，working=false也不能靠value
     assert.equal(result.flowing, false)
     assert.equal(result.medium, 'empty')
     assert.equal(result.blockedBy, 'Rg002')
+    assert.equal(result.hoseDisconnected, true)
   }
   assert.equal(states['34'].medium, 'methanol', '只有显示状态被覆盖，不污染纯引擎/评分快照')
 })

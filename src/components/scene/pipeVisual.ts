@@ -17,7 +17,7 @@ export function resolvePipeDrawing(drawing: PipeDrawing, states: Readonly<Record
     const controller = controllerId ? lookup.get(normalizedDeviceId(controllerId)) as (SceneDevice & { connected?: boolean }) | undefined : undefined
     if (geometry.node.kind === 'hose' && controller && (geometry.soft || /^rg\d+$/i.test(controller.id))) {
       if (controller.connected === false || (!freeManual && (controller.enabled === false || controller.error === true)) || controller.working !== true || !(controller.value > 0)) {
-        state.medium = 'empty'; state.filled = false; state.flowing = false; state.blockedBy = controller.id
+        state.medium = 'empty'; state.filled = false; state.flowing = false; state.blockedBy = controller.id; state.hoseDisconnected = true
       }
     }
     state.flowing = running && state.flowing && state.filled && state.medium !== 'empty'

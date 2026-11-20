@@ -12,7 +12,7 @@ const rows = computed(() => props.drawing.pipes.map(shape => {
   const state = props.states[shape.id]
   const medium = state?.filled ? media.get(state.medium) : undefined
   const phase = (state?.forward === false ? shape.end.x + shape.end.y : shape.start.x + shape.start.y) % 26
-  const connected = !state?.blockedBy
+  const connected = !state?.hoseDisconnected
   const doubleWall = !shape.soft && /^(engine|lfss|overview)-/.test(shape.id) && shape.diameter >= 15 && jacketIds.has(shape.pipeId || '')
   const start = samplePipe(shape, 0), end = samplePipe(shape, 1)
   const disconnectedEnd = { ...end, x: end.x - (end.x - start.x) * 0.3, y: end.y + shape.diameter * 3 }
@@ -35,11 +35,11 @@ const rows = computed(() => props.drawing.pipes.map(shape => {
       <path v-for="row in rows" :key="row.shape.id" :d="row.path" :stroke-width="row.doubleWall ? Math.max(1, row.shape.diameter * .5) : Math.max(0.7, row.shape.diameter - 0.6)" :class="{ 'pipe-rubber-bore': row.shape.soft }" />
     </g>
     <g class="pipe-fills">
-      <path v-for="row in rows.filter(item => item.medium && item.state?.filled)" :key="row.shape.id" :d="row.shape.path" :stroke="row.medium!.color" :stroke-width="row.doubleWall ? Math.max(1, row.shape.diameter * .5) : Math.max(0.7, row.shape.diameter - 0.6)" :data-pipe-fill="row.shape.id" :data-pipe-id="row.state!.pipeId" :data-medium="row.state!.medium" :data-source="row.state!.sourceId" />
+      <path v-for="row in rows.filter(item => item.medium && item.state?.filled)" :key="row.shape.id" :d="row.path" :stroke="row.medium!.color" :stroke-width="row.doubleWall ? Math.max(1, row.shape.diameter * .5) : Math.max(0.7, row.shape.diameter - 0.6)" :data-pipe-fill="row.shape.id" :data-pipe-id="row.state!.pipeId" :data-medium="row.state!.medium" :data-source="row.state!.sourceId" />
     </g>
     <g class="pipe-motions">
-      <path v-for="row in rows.filter(item => item.medium && item.state?.flowing)" :key="row.shape.id" class="pipe-flow" :class="{ reverse: row.state?.forward === false }" :d="row.shape.path" stroke="white" :stroke-width="Math.max(1.5, row.shape.diameter * 0.42)" :style="{ '--pipe-phase': `${-row.phase}px` }" />
-      <path v-for="row in rows.filter(item => item.medium && item.state?.flowing)" :key="`color-${row.shape.id}`" class="pipe-flow" :class="{ reverse: row.state?.forward === false }" :d="row.shape.path" :stroke="row.medium!.color" :stroke-width="Math.max(0.7, row.shape.diameter * 0.22)" :style="{ '--pipe-phase': `${-row.phase}px` }" :data-pipe-flow="row.shape.id" :data-pipe-id="row.state!.pipeId" :data-medium="row.state!.medium" :data-forward="row.state!.forward" />
+      <path v-for="row in rows.filter(item => item.medium && item.state?.flowing)" :key="row.shape.id" class="pipe-flow" :class="{ reverse: row.state?.forward === false }" :d="row.path" stroke="white" :stroke-width="Math.max(1.5, row.shape.diameter * 0.42)" :style="{ '--pipe-phase': `${-row.phase}px` }" />
+      <path v-for="row in rows.filter(item => item.medium && item.state?.flowing)" :key="`color-${row.shape.id}`" class="pipe-flow" :class="{ reverse: row.state?.forward === false }" :d="row.path" :stroke="row.medium!.color" :stroke-width="Math.max(0.7, row.shape.diameter * 0.22)" :style="{ '--pipe-phase': `${-row.phase}px` }" :data-pipe-flow="row.shape.id" :data-pipe-id="row.state!.pipeId" :data-medium="row.state!.medium" :data-forward="row.state!.forward" />
     </g>
     <g v-for="row in rows.filter(item => item.shape.node.kind === 'hose' && !item.shape.soft)" :key="`bridge-${row.shape.id}`" class="pipe-bridge" :data-pipe-bridge="row.shape.id">
       <path :d="row.path" pathLength="100" stroke="#526776" :stroke-width="row.shape.diameter + 1.4" stroke-dasharray="0 8 84 8" stroke-linecap="butt" />
